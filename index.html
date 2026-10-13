@@ -28,6 +28,17 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      /* Keep a script error from trapping the user on the launch overlay. */
+      window.setTimeout(function () {
+        var splash = document.getElementById("launchSplash");
+        if (!splash) return;
+        splash.classList.add("is-done");
+        window.setTimeout(function () {
+          if (splash.isConnected) splash.remove();
+        }, 620);
+      }, 6000);
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -98,8 +109,9 @@
         position: relative;
         isolation: isolate;
         width: 100%;
-        height: 100%;
-        min-height: 640px;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
         overflow: hidden;
         background:
           radial-gradient(68% 32% at 55% 5%, rgba(45, 113, 255, 0.92) 0%, rgba(31, 76, 181, 0.47) 29%, rgba(11, 17, 47, 0) 75%),
@@ -1954,7 +1966,7 @@
         border-radius: inherit;
         background: linear-gradient(90deg, #55c9e5, #4b8dff);
         box-shadow: 0 0 13px rgba(69, 179, 255, 0.68);
-        animation: launchProgress 1.55s cubic-bezier(0.36, 0, 0.2, 1) both;
+        animation: launchProgress 1.1s cubic-bezier(0.36, 0, 0.2, 1) infinite;
       }
 
       @keyframes launchContentEnter {
@@ -18882,14 +18894,52 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
 
       const launchSplash = document.getElementById("launchSplash");
       if (launchSplash) {
-        const launchDuration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 150 : 800;
-        window.setTimeout(() => {
-          if (!launchSplash.isConnected) return;
-          launchSplash.classList.add("is-done");
-          window.setTimeout(() => {
-            if (launchSplash.isConnected) launchSplash.remove();
-          }, 180);
-        }, launchDuration);
+        const launchStartedAt = performance.now();
+        const minimumLaunchTime = 2500;
+        const launchLogo = launchSplash.querySelector(".launch-logo");
+        const logoReady = launchLogo && typeof launchLogo.decode === "function"
+          ? launchLogo.decode().catch(() => {})
+          : Promise.resolve();
+        const fontsReady = document.fonts && document.fonts.ready
+          ? Promise.resolve(document.fonts.ready).catch(() => {})
+          : Promise.resolve();
+        const launchSafetyTimeout = new Promise((resolve) => window.setTimeout(resolve, 2000));
+
+        Promise.race([Promise.all([logoReady, fontsReady]), launchSafetyTimeout])
+          .then(() => new Promise((resolve) => {
+            const remaining = Math.max(0, minimumLaunchTime - (performance.now() - launchStartedAt));
+            window.setTimeout(() => {
+              const appShell = document.querySelector(".app-shell");
+              let previousFrame = "";
+              let stableFrameCount = 0;
+              let checkedFrameCount = 0;
+              const checkFrameStability = () => {
+                const bounds = appShell ? appShell.getBoundingClientRect() : null;
+                const frameSignature = [
+                  window.innerWidth,
+                  window.innerHeight,
+                  bounds ? Math.round(bounds.width * 10) / 10 : 0,
+                  bounds ? Math.round(bounds.height * 10) / 10 : 0
+                ].join(":");
+                stableFrameCount = frameSignature === previousFrame ? stableFrameCount + 1 : 0;
+                previousFrame = frameSignature;
+                checkedFrameCount += 1;
+                if (stableFrameCount >= 2 || checkedFrameCount >= 8) {
+                  resolve();
+                  return;
+                }
+                window.requestAnimationFrame(checkFrameStability);
+              };
+              window.requestAnimationFrame(checkFrameStability);
+            }, remaining);
+          }))
+          .then(() => {
+            if (!launchSplash.isConnected) return;
+            launchSplash.classList.add("is-done");
+            window.setTimeout(() => {
+              if (launchSplash.isConnected) launchSplash.remove();
+            }, 620);
+          });
       }
 
 
@@ -22913,6 +22963,26 @@ frame.srcdoc="\u003c!doctype html\u003e\n\u003chtml lang=\"ar\" dir=\"rtl\"\u003
 <script>
 (() => {
   "use strict";
+
+  /*
+   * The bundled 100-coin snapshot contains over 2 MB of image data.
+   * Defer parsing it, rendering its icons, and starting market requests until
+   * the market panel is first opened so those tasks cannot jank the launch UI.
+   */
+  const marketEnhancementSource = document.currentScript;
+  const marketLayerForStartup = document.getElementById("marketLayer");
+  if (marketEnhancementSource && marketLayerForStartup && !marketLayerForStartup.classList.contains("is-open")) {
+    const marketStartupObserver = new MutationObserver(() => {
+      if (!marketLayerForStartup.classList.contains("is-open")) return;
+      marketStartupObserver.disconnect();
+      const marketRuntime = document.createElement("script");
+      marketRuntime.id = "fxtm-market-enhancement-runtime";
+      marketRuntime.textContent = marketEnhancementSource.textContent;
+      document.body.appendChild(marketRuntime);
+    });
+    marketStartupObserver.observe(marketLayerForStartup, { attributes: true, attributeFilter: ["class"] });
+    return;
+  }
 
   const CACHE_KEY = "fxtm.coingecko.top100.v1";
   const PAIR_KEY = "fxtm.binance.usdt-pairs.v1";
