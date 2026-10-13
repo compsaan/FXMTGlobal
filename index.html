@@ -9811,7 +9811,6 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
   .referral-status.is-active::before { background: #58e1ab; box-shadow: 0 0 9px rgba(88,225,171,.45); }
   .referral-empty, .referral-state { padding: 16px 10px; color: #aab5d5; font-size: 11px; line-height: 1.6; text-align: center; }
   .referral-state[hidden] { display: none !important; }
-  #referralRetryButton { margin: 0 auto 12px; }
   .referral-policy-note {
     margin: 11px 0 0; padding: 10px 12px; border: 1px solid rgba(190, 181, 255, .28); border-radius: 12px;
     background: linear-gradient(110deg, rgba(68, 208, 255, .08), rgba(134, 121, 255, .1) 55%, rgba(255, 118, 214, .08));
@@ -9820,6 +9819,102 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
   .action[data-action="referrals"] .action-icon { color: #d8a2ff; }
   .action[data-action="referrals"] .action-label { color: #d5b1ff; }
   .account-menu-item[data-account-action="referrals"] .account-menu-icon { color: #e0b6ff; }
+  /* Match the referral screen to the violet glass palette used by Sync. */
+  .referral-layer {
+    --sync-primary: #d3a2ff;
+    --sync-primary-strong: #a15de8;
+    --sync-cyber: #ff83d7;
+    --sync-line: rgba(205, 168, 255, .24);
+    --sync-surface: rgba(72, 48, 105, .54);
+    --sync-surface-raised: rgba(100, 67, 142, .56);
+    --referral-muted: #b5bfdc;
+    background:
+      radial-gradient(90% 32% at 50% 0%, rgba(195, 105, 255, .2), transparent 75%),
+      radial-gradient(70% 48% at 100% 58%, rgba(57, 114, 248, .14), transparent 76%),
+      linear-gradient(155deg, #0d0a1b, #0a0918 54%, #080713);
+    color: #f7efff;
+  }
+  .referral-dialog {
+    border-color: rgba(203, 164, 255, .28);
+    background: linear-gradient(145deg, rgba(94, 64, 134, .4), rgba(21, 23, 55, .8));
+    box-shadow: inset 0 1px rgba(255,255,255,.1), 0 14px 32px rgba(0,0,0,.26), 0 0 0 1px rgba(184,104,255,.12);
+    color: #f7efff;
+  }
+  .referral-dialog::before {
+    background: linear-gradient(90deg, transparent, rgba(197, 134, 255, .7), rgba(112, 218, 255, .55), transparent);
+    box-shadow: 0 0 14px rgba(195, 125, 255, .52);
+  }
+  .referral-layer::-webkit-scrollbar-thumb { background: linear-gradient(#7caeff, #bd8cff 55%, #ff83d7); }
+  .referral-eyebrow { color: #e2c4ff; text-shadow: none; }
+  .referral-eyebrow i { color: #ff83d7; }
+  .referral-close {
+    border-color: rgba(207, 167, 255, .42);
+    background: linear-gradient(145deg, rgba(177, 114, 239, .36), rgba(61, 83, 163, .42));
+    color: #f7efff;
+    box-shadow: 0 0 20px rgba(178, 105, 255, .16), inset 0 1px rgba(255,255,255,.2);
+  }
+  .referral-close:hover { border-color: rgba(201, 157, 255, .72); box-shadow: 0 0 18px rgba(176, 101, 255, .22); }
+  .referral-hero,
+  .referral-metric,
+  .referral-rule,
+  .referral-members-wrap {
+    border-color: rgba(203, 164, 255, .28);
+    background: linear-gradient(145deg, rgba(94, 64, 134, .4), rgba(21, 23, 55, .8));
+    box-shadow: inset 0 1px rgba(255,255,255,.1), 0 14px 32px rgba(0,0,0,.19);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+  }
+  .referral-hero::after { background: radial-gradient(circle, rgba(181, 107, 255, .18), transparent 68%); }
+  .referral-hero p { color: var(--referral-muted); }
+  .referral-code-copy span,
+  .referral-metric span,
+  .referral-rule p,
+  .referral-steps,
+  .referral-members-table th,
+  .referral-empty,
+  .referral-state { color: var(--referral-muted); }
+  .referral-code-copy strong,
+  .referral-header h2,
+  .referral-section h3,
+  .referral-rule-heading strong,
+  .referral-members-table td { color: #f7efff; }
+  .referral-link-input {
+    border-color: rgba(202, 164, 255, .32);
+    background: rgba(12, 10, 28, .78);
+    color: #f7efff;
+  }
+  .referral-link-input:focus-visible { outline: 3px solid var(--sync-primary); outline-offset: 3px; }
+  .referral-action-button {
+    border-color: rgba(201, 157, 255, .44);
+    background: linear-gradient(120deg, rgba(174, 100, 230, .2), rgba(66, 111, 191, .2));
+    color: #e9d6ff;
+    box-shadow: 0 0 18px rgba(176, 101, 255, .1), inset 0 1px rgba(255,255,255,.12);
+  }
+  .referral-action-button:hover {
+    border-color: rgba(201, 157, 255, .72);
+    background: linear-gradient(120deg, rgba(174, 100, 230, .34), rgba(66, 111, 191, .32));
+    box-shadow: 0 0 18px rgba(176, 101, 255, .2), inset 0 1px rgba(255,255,255,.16);
+  }
+  .referral-action-button--primary {
+    border-color: rgba(201, 157, 255, .44);
+    background: linear-gradient(120deg, rgba(174, 100, 230, .34), rgba(66, 111, 191, .32));
+    color: #f2e8ff;
+    box-shadow: 0 0 18px rgba(176, 101, 255, .15), inset 0 1px rgba(255,255,255,.16);
+  }
+  .referral-metric--earnings strong,
+  .referral-status.is-active { color: #65e6b4; }
+  .referral-rule-heading .referral-rate { color: #d3a2ff; text-shadow: 0 0 12px rgba(195, 125, 255, .2); }
+  .referral-members-wrap { overflow-x: auto; }
+  .referral-members-table th,
+  .referral-members-table td { border-bottom-color: rgba(205, 168, 255, .16); }
+  .referral-status.is-active::before { background: #65e6b4; box-shadow: 0 0 9px rgba(101,230,180,.45); }
+  .referral-policy-note {
+    border-color: rgba(203, 164, 255, .28);
+    background: linear-gradient(145deg, rgba(94, 64, 134, .26), rgba(21, 23, 55, .72));
+    box-shadow: inset 0 1px rgba(255,255,255,.08), 0 10px 26px rgba(0,0,0,.12);
+    color: var(--referral-muted);
+  }
+  .referral-dialog :focus-visible { outline: 3px solid #d6a5ff; outline-offset: 3px; }
   @media (max-width: 520px) {
     .referral-dialog { padding: 15px; border-radius: 20px; }
     .referral-hero { padding: 14px; }
@@ -10697,7 +10792,6 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           <input class="referral-link-input" id="referralRewardsLink" type="text" dir="ltr" readonly aria-label="Referral link" data-i18n-aria="referralLinkLabel" />
         </div>
         <p class="referral-state" id="referralRewardsState" role="status" aria-live="polite" data-i18n="referralLoading">جارٍ تحميل بيانات الدعوات…</p>
-        <button class="referral-action-button" id="referralRetryButton" type="button" hidden><span data-i18n="referralRetry">إعادة المحاولة</span></button>
         <div id="referralRewardsContent" hidden>
           <div class="referral-metrics" aria-live="polite">
             <div class="referral-metric"><span data-i18n="referralStatInvites">إجمالي المدعوين</span><strong id="referralTotalMembers">0</strong></div>
@@ -12142,7 +12236,6 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         referralNoMembers: "No one has joined through your referral link yet. Share it to get started.",
         referralLoading: "Loading referral data…",
         referralLoadError: "Referral data could not be loaded. Check your connection and try again.",
-        referralRetry: "Retry",
         referralClose: "Close referrals and rewards",
         referralCopySuccess: "Referral link copied",
         referralShareText: "Join me on FXTM using my referral link:",
@@ -12426,7 +12519,6 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
            referralNoMembers: "لم ينضم أحد عبر رابطك بعد. شاركه لتبدأ.",
            referralLoading: "جارٍ تحميل بيانات الدعوات…",
            referralLoadError: "تعذر تحميل بيانات الدعوات. تحقق من الاتصال وحاول مجددًا.",
-           referralRetry: "إعادة المحاولة",
            referralClose: "إغلاق الدعوات والمكافآت",
            referralCopySuccess: "تم نسخ رابط الدعوة",
            referralShareText: "انضم إليّ على FXTM عبر رابط الدعوة الخاص بي:",
@@ -13980,23 +14072,19 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       function showReferralLoadError(message = "") {
         const state = document.getElementById("referralRewardsState");
         const content = document.getElementById("referralRewardsContent");
-        const retry = document.getElementById("referralRetryButton");
         if (state) {
           state.hidden = false;
           state.textContent = message || t("referralLoadError");
         }
         if (content) content.hidden = true;
-        if (retry) retry.hidden = false;
       }
 
       async function loadReferralRewardsData() {
         const sequence = ++referralLoadSequence;
         const state = document.getElementById("referralRewardsState");
         const content = document.getElementById("referralRewardsContent");
-        const retry = document.getElementById("referralRetryButton");
         if (state) { state.hidden = false; state.textContent = t("referralLoading"); }
         if (content) content.hidden = true;
-        if (retry) retry.hidden = true;
         try {
           const response = await loadTeam();
           if (sequence !== referralLoadSequence || referralRewardsLayer.hidden) return;
@@ -14064,7 +14152,6 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       }
 
       document.getElementById("referralCloseButton")?.addEventListener("click", () => closeReferralRewards());
-      document.getElementById("referralRetryButton")?.addEventListener("click", loadReferralRewardsData);
       document.getElementById("referralRewardsLayer")?.addEventListener("click", (event) => {
         if (event.target === referralRewardsLayer) closeReferralRewards();
       });
