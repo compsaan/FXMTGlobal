@@ -9787,6 +9787,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
   }
   .referral-metric span { display: block; color: #aab5d5; font-size: 10px; line-height: 1.45; }
   .referral-metric strong { display: block; overflow: hidden; margin-top: 7px; color: #fff; font-size: clamp(17px, 4vw, 22px); text-overflow: ellipsis; white-space: nowrap; }
+  .referral-metric strong.is-loading { display: flex; min-height: 25px; align-items: center; justify-content: center; overflow: visible; }
+  .referral-loading-spinner { display: inline-block !important; width: 18px; height: 18px; padding: 0; border: 2px solid rgba(180, 202, 255, .32); border-top-color: #73e5ff !important; border-right-color: #b78aff; border-radius: 50%; animation: referral-metric-spin .8s linear infinite; }
+  @keyframes referral-metric-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .referral-loading-spinner { animation-duration: 2.4s; } }
   .referral-metric--earnings strong { color: #81edc3; }
   .referral-section { margin-top: 15px; }
   .referral-section h3 { margin: 0 0 9px; color: #f6f7ff; font-size: 14px; }
@@ -9811,6 +9815,9 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
   .referral-status.is-active::before { background: #58e1ab; box-shadow: 0 0 9px rgba(88,225,171,.45); }
   .referral-empty, .referral-state { padding: 16px 10px; color: #aab5d5; font-size: 11px; line-height: 1.6; text-align: center; }
   .referral-state[hidden] { display: none !important; }
+  .referral-retry { display: block; margin: 0 auto 10px; padding: 8px 14px; border: 1px solid rgba(186, 165, 255, .48); border-radius: 10px; background: rgba(125, 88, 214, .18); color: #e8dcff; font: inherit; font-size: 11px; cursor: pointer; }
+  .referral-retry[hidden] { display: none !important; }
+  .referral-retry:disabled { opacity: .55; cursor: wait; }
   .referral-policy-note {
     margin: 11px 0 0; padding: 10px 12px; border: 1px solid rgba(190, 181, 255, .28); border-radius: 12px;
     background: linear-gradient(110deg, rgba(68, 208, 255, .08), rgba(134, 121, 255, .1) 55%, rgba(255, 118, 214, .08));
@@ -10791,18 +10798,17 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           </div>
           <input class="referral-link-input" id="referralRewardsLink" type="text" dir="ltr" readonly aria-label="Referral link" data-i18n-aria="referralLinkLabel" />
         </div>
-        <p class="referral-state" id="referralRewardsState" role="status" aria-live="polite" data-i18n="referralLoading">جارٍ تحميل بيانات الدعوات…</p>
-        <div id="referralRewardsContent" hidden>
+        <div id="referralRewardsContent">
           <div class="referral-metrics" aria-live="polite">
-            <div class="referral-metric"><span data-i18n="referralStatInvites">إجمالي المدعوين</span><strong id="referralTotalMembers">0</strong></div>
-            <div class="referral-metric"><span data-i18n="referralStatActive">أكملوا أول إيداع</span><strong id="referralActiveMembers">0</strong></div>
-            <div class="referral-metric referral-metric--earnings"><span data-i18n="referralStatEarnings">إجمالي مكافآتك</span><strong id="referralTotalEarnings" dir="ltr">0.00 USDT</strong></div>
+            <div class="referral-metric"><span data-i18n="referralStatInvites">إجمالي المدعوين</span><strong id="referralTotalMembers" class="is-loading" aria-busy="true"><span class="referral-loading-spinner" aria-hidden="true"></span></strong></div>
+            <div class="referral-metric"><span data-i18n="referralStatActive">أكملوا أول إيداع</span><strong id="referralActiveMembers" class="is-loading" aria-busy="true"><span class="referral-loading-spinner" aria-hidden="true"></span></strong></div>
+            <div class="referral-metric referral-metric--earnings"><span data-i18n="referralStatEarnings">إجمالي مكافآتك</span><strong id="referralTotalEarnings" dir="ltr" class="is-loading" aria-busy="true"><span class="referral-loading-spinner" aria-hidden="true"></span></strong></div>
           </div>
           <section class="referral-section" aria-labelledby="referralRulesTitle">
             <h3 id="referralRulesTitle" data-i18n="referralRulesTitle">نِسب المكافآت</h3>
             <div class="referral-rules">
               <article class="referral-rule">
-                <div class="referral-rule-heading"><strong data-i18n="referralLevelOne">المستوى الأول — دعواتك المباشرة</strong><span class="referral-rate" id="referralLevelOneRate">0.5%</span></div>
+                <div class="referral-rule-heading"><strong data-i18n="referralLevelOne">المستوى الأول — دعواتك المباشرة</strong><span class="referral-rate" id="referralLevelOneRate">10%</span></div>
                 <p data-i18n="referralLevelOneDetail">تحصل على هذه النسبة من أول إيداع مكتمل لكل شخص دعوته مباشرة.</p>
               </article>
               <article class="referral-rule">
@@ -10819,9 +10825,11 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           </section>
           <section class="referral-section" aria-labelledby="referralMembersTitle">
             <h3 id="referralMembersTitle" data-i18n="referralMembersTitle">أعضاء فريقك</h3>
+            <p class="referral-state" id="referralRewardsState" role="status" aria-live="polite" data-i18n="referralLoading">جارٍ تحميل بيانات الفريق والمكافآت…</p>
+            <button class="referral-retry" id="referralRetryButton" type="button" data-i18n="referralRetry" hidden>إعادة المحاولة</button>
             <div id="referralMembersList"></div>
           </section>
-          <p class="referral-policy-note" data-i18n="referralPolicyNote">تعتمد المكافآت على حالة الإيداع المسجلة في المنصة. النسب الحالية: 0.5% للمستوى الأول و0.1% للمستوى الثاني، وتُصرف مرة واحدة بعد أول إيداع مكتمل فقط.</p>
+          <p class="referral-policy-note" data-i18n="referralPolicyNote">تعتمد المكافآت على حالة الإيداع المسجلة في المنصة. النسب الحالية: 10% للمستوى الأول و0.1% للمستوى الثاني.</p>
         </div>
       </section>
     </div>
@@ -12208,7 +12216,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         referralProgram: "Invite & earn",
         referralMenuDescription: "Share your link and track team rewards",
         referralDialogTitle: "Invite friends and earn",
-        referralHeroDescription: "Share your personal link. When a friend signs up and completes their first deposit, you receive a referral reward.",
+        referralHeroDescription: "Share your personal link. Earn referral rewards when an invited member completes their first deposit, provided you completed your own first deposit earlier.",
         referralCodeLabel: "Your referral code",
         referralLinkLabel: "Referral link",
         referralCopyButton: "Copy link",
@@ -12219,12 +12227,12 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         referralRulesTitle: "Reward rates",
         referralLevelOne: "Level 1 — people you invite",
         referralLevelTwo: "Level 2 — your team's invites",
-        referralLevelOneDetail: "Earn this rate on each direct invite's first completed deposit.",
-        referralLevelTwoDetail: "Earn this rate on the first completed deposit of people invited by your direct invites.",
+        referralLevelOneDetail: "Earn this rate on a direct invite's first completed deposit only if you completed your own first deposit earlier.",
+        referralLevelTwoDetail: "Earn this rate on a team member's first completed deposit only if you completed your own first deposit earlier.",
         referralEligibilityTitle: "How rewards are earned",
         referralEligibilityOne: "A new member signs up using your link or your 8-character code.",
-        referralEligibilityTwo: "A reward qualifies only after that member's first deposit is marked completed.",
-        referralEligibilityThree: "The reward is credited once to your account balance; pending deposits do not qualify.",
+        referralEligibilityTwo: "The invited member's first deposit must be marked completed; pending deposits do not qualify.",
+        referralEligibilityThree: "You must also have a completed first deposit before that member's first completed deposit. Rewards are not backdated.",
         referralMembersTitle: "Your team",
         referralMemberColumn: "Member",
         referralLevelColumn: "Level",
@@ -12234,13 +12242,17 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         referralActiveStatus: "Active",
         referralPendingStatus: "Awaiting first completed deposit",
         referralNoMembers: "No one has joined through your referral link yet. Share it to get started.",
-        referralLoading: "Loading referral data…",
+        referralLoading: "Loading your team and rewards…",
+        referralRefreshing: "Refreshing your team and rewards…",
+        referralCachedError: "Could not refresh. Showing your last saved team data.",
+        referralLocalFileError: "Live team details need a network connection. Open the hosted website (https://compsaan.github.io/FXMTGlobal/) instead of this local HTML file.",
+        referralRetry: "Retry",
         referralLoadError: "Referral data could not be loaded. Check your connection and try again.",
         referralClose: "Close referrals and rewards",
         referralCopySuccess: "Referral link copied",
         referralShareText: "Join me on FXTM using my referral link:",
         referralShareUnavailable: "Sharing is unavailable here; your link has been copied instead.",
-        referralPolicyNote: "Rewards use the deposit status recorded by the platform. Current rates are 0.5% for level 1 and 0.1% for level 2, paid once after the first completed deposit.",
+        referralPolicyNote: "Rewards use the deposit status recorded by the platform. Current rates are 10% for level 1 and 0.1% for level 2. You must complete your own first deposit before the invited member's first completed deposit; rewards are not backdated.",
         languageSettings: "Language",
         languageSettingsDescription: "Choose the interface language that suits you",
         downloadAppItem: "Download the app",
@@ -12491,7 +12503,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
            referralProgram: "الدعوات والمكافآت",
            referralMenuDescription: "شارك رابطك وتابع مكافآت فريقك",
            referralDialogTitle: "ادعُ أصدقاءك واكسب",
-           referralHeroDescription: "شارك رابطك الخاص. عندما يسجل صديقك ويكمل أول إيداع، تحصل على مكافأة إحالة.",
+            referralHeroDescription: "شارك رابطك الخاص. تحصل على مكافآت الإحالة عندما يكمل العضو المدعو أول إيداع، بشرط أن تكون قد أكملت إيداعك الأول قبله.",
            referralCodeLabel: "كود الدعوة الخاص بك",
            referralLinkLabel: "رابط الدعوة",
            referralCopyButton: "نسخ الرابط",
@@ -12502,12 +12514,12 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
            referralRulesTitle: "نِسب المكافآت",
            referralLevelOne: "المستوى الأول — دعواتك المباشرة",
            referralLevelTwo: "المستوى الثاني — دعوات فريقك",
-           referralLevelOneDetail: "تحصل على هذه النسبة من أول إيداع مكتمل لكل شخص دعوته مباشرة.",
-           referralLevelTwoDetail: "تحصل على هذه النسبة من أول إيداع مكتمل لأعضاء يدعوهم الأشخاص الذين دعوتهم.",
+            referralLevelOneDetail: "تحصل على هذه النسبة من أول إيداع مكتمل للمدعو مباشرة، بشرط أن تكون قد أكملت إيداعك الأول قبله.",
+            referralLevelTwoDetail: "تحصل على هذه النسبة من أول إيداع مكتمل لعضو الفريق، بشرط أن تكون قد أكملت إيداعك الأول قبله.",
            referralEligibilityTitle: "كيف تُحتسب المكافأة؟",
            referralEligibilityOne: "يسجل العضو الجديد عبر رابطك أو كودك المكوّن من 8 خانات.",
-           referralEligibilityTwo: "تُحتسب المكافأة بعد اعتماد أول إيداع له بحالة «مكتمل» فقط.",
-           referralEligibilityThree: "تُضاف المكافأة مرة واحدة إلى رصيد حسابك؛ الإيداعات قيد المعالجة لا تُحتسب.",
+            referralEligibilityTwo: "يجب اعتماد أول إيداع للعضو المدعو بحالة «مكتمل»؛ الإيداعات قيد المعالجة لا تُحتسب.",
+            referralEligibilityThree: "يجب أن يكون إيداعك الأول قد اكتمل قبل أول إيداع مكتمل للعضو المدعو؛ لا تُصرف المكافأة بأثر رجعي.",
            referralMembersTitle: "أعضاء فريقك",
            referralMemberColumn: "العضو",
            referralLevelColumn: "المستوى",
@@ -12517,13 +12529,17 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
            referralActiveStatus: "نشط",
            referralPendingStatus: "بانتظار أول إيداع مكتمل",
            referralNoMembers: "لم ينضم أحد عبر رابطك بعد. شاركه لتبدأ.",
-           referralLoading: "جارٍ تحميل بيانات الدعوات…",
+           referralLoading: "جارٍ تحميل بيانات الفريق والمكافآت…",
+           referralRefreshing: "جارٍ تحديث بيانات الفريق والمكافآت…",
+           referralCachedError: "تعذر التحديث؛ نعرض آخر بيانات محفوظة للفريق.",
+           referralLocalFileError: "تحتاج بيانات الفريق المباشرة إلى اتصال بالإنترنت. افتح الموقع المستضاف بدلًا من ملف HTML المحلي.",
+           referralRetry: "إعادة المحاولة",
            referralLoadError: "تعذر تحميل بيانات الدعوات. تحقق من الاتصال وحاول مجددًا.",
            referralClose: "إغلاق الدعوات والمكافآت",
            referralCopySuccess: "تم نسخ رابط الدعوة",
            referralShareText: "انضم إليّ على FXTM عبر رابط الدعوة الخاص بي:",
            referralShareUnavailable: "المشاركة غير متاحة هنا؛ تم نسخ الرابط بدلًا منها.",
-           referralPolicyNote: "تُحتسب المكافآت وفق حالة الإيداع المسجلة في المنصة. النسب الحالية 0.5% للمستوى الأول و0.1% للمستوى الثاني، وتُصرف مرة واحدة بعد أول إيداع مكتمل.",
+            referralPolicyNote: "تُحتسب المكافآت وفق حالة الإيداع المسجلة في المنصة. النسب الحالية 10% للمستوى الأول و0.1% للمستوى الثاني. يجب أن يكتمل إيداعك الأول قبل أول إيداع مكتمل للعضو المدعو؛ لا تُصرف المكافآت بأثر رجعي.",
            languageSettings: "اللغة",
            languageSettingsDescription: "اختر لغة الواجهة المناسبة لك",
            downloadAppItem: "تحميل التطبيق",
@@ -14069,24 +14085,137 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           </tr></thead><tbody>${rows}</tbody></table></div>`;
       }
 
-      function showReferralLoadError(message = "") {
+      function setReferralMetric(id, value, loading = false) {
+        const element = document.getElementById(id);
+        if (!element) return;
+        element.classList.toggle("is-loading", loading);
+        element.setAttribute("aria-busy", loading ? "true" : "false");
+        if (loading) {
+          element.innerHTML = '<span class="referral-loading-spinner" aria-hidden="true"></span>';
+        } else {
+          element.textContent = String(value);
+        }
+      }
+
+      function setReferralMetricsLoading(loading) {
+        ["referralTotalMembers", "referralActiveMembers", "referralTotalEarnings"].forEach((id) => {
+          setReferralMetric(id, "—", loading);
+        });
+      }
+
+      function showReferralLoadError(message = "", hasCachedData = false) {
         const state = document.getElementById("referralRewardsState");
-        const content = document.getElementById("referralRewardsContent");
+        const retry = document.getElementById("referralRetryButton");
+        const protocol = String(window.location.protocol || "").toLowerCase();
+        const openedAsLocalFile = protocol === "file:" || protocol === "content:";
+        if (!hasCachedData) setReferralMetricsLoading(false);
         if (state) {
           state.hidden = false;
-          state.textContent = message || t("referralLoadError");
+          state.textContent = hasCachedData
+            ? t("referralCachedError")
+            : (openedAsLocalFile ? t("referralLocalFileError") : (message || t("referralLoadError")));
         }
-        if (content) content.hidden = true;
+        if (retry) retry.hidden = false;
+      }
+
+      function renderReferralStaticInfo() {
+        let code = "";
+        let fallbackLink = "";
+        try {
+          code = String(currentUser?.referralCode || localStorage.getItem("referralCode") || "");
+          fallbackLink = String(currentUser?.referralLink || localStorage.getItem("referralLink") || "");
+        } catch (error) {
+          code = String(currentUser?.referralCode || "");
+          fallbackLink = String(currentUser?.referralLink || "");
+        }
+        const link = code ? `${referralLandingBase}?ref=${encodeURIComponent(code)}` : fallbackLink;
+        const codeElement = document.getElementById("referralRewardsCode");
+        const linkElement = document.getElementById("referralRewardsLink");
+        const levelOneRate = document.getElementById("referralLevelOneRate");
+        const levelTwoRate = document.getElementById("referralLevelTwoRate");
+        if (codeElement) codeElement.textContent = code || "—";
+        if (linkElement) linkElement.value = link;
+        // هذه معلومات ثابتة داخل HTML؛ لا تنتظر الخادم ولا تسمح لقيمة قديمة باستبدالها.
+        if (levelOneRate) levelOneRate.textContent = "10%";
+        if (levelTwoRate) levelTwoRate.textContent = "0.1%";
+      }
+
+      function resetReferralTeamInfo() {
+        const list = document.getElementById("referralMembersList");
+        const state = document.getElementById("referralRewardsState");
+        setReferralMetricsLoading(true);
+        if (list) list.replaceChildren();
+        const retry = document.getElementById("referralRetryButton");
+        if (retry) { retry.hidden = true; retry.disabled = false; }
+        if (state) {
+          state.hidden = false;
+          state.textContent = t("referralLoading");
+        }
+      }
+
+      function referralTeamCacheKey() {
+        try {
+          const username = String(currentUser?.username || localStorage.getItem("username") || "")
+            .trim()
+            .toLowerCase();
+          return username ? `fxtm-referral-team-cache-v1:${username}` : "";
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function applyReferralTeamData(data) {
+        const totals = data?.totals || {};
+        setReferralMetric("referralTotalMembers", String(Number(totals.members) || 0));
+        setReferralMetric("referralActiveMembers", String(Number(totals.active) || 0));
+        setReferralMetric("referralTotalEarnings", referralFormatAmount(totals.earnings));
+        renderReferralMembers(data || {});
+      }
+
+      function saveReferralTeamCache(data) {
+        const key = referralTeamCacheKey();
+        if (!key) return;
+        try {
+          const cache = {
+            savedAt: Date.now(),
+            totals: data?.totals || {},
+            members: Array.isArray(data?.members) ? data.members : []
+          };
+          localStorage.setItem(key, JSON.stringify(cache));
+        } catch (error) {}
+      }
+
+      function restoreReferralTeamCache() {
+        const key = referralTeamCacheKey();
+        if (!key) return false;
+        try {
+          const cache = JSON.parse(localStorage.getItem(key) || "null");
+          if (!cache || !cache.totals || !Array.isArray(cache.members)) return false;
+          applyReferralTeamData(cache);
+          return true;
+        } catch (error) {
+          return false;
+        }
       }
 
       async function loadReferralRewardsData() {
         const sequence = ++referralLoadSequence;
         const state = document.getElementById("referralRewardsState");
-        const content = document.getElementById("referralRewardsContent");
-        if (state) { state.hidden = false; state.textContent = t("referralLoading"); }
-        if (content) content.hidden = true;
+        const retry = document.getElementById("referralRetryButton");
+        const hasCachedData = restoreReferralTeamCache();
+        if (!hasCachedData) setReferralMetricsLoading(true);
+        if (state) {
+          state.hidden = false;
+          state.textContent = hasCachedData ? t("referralRefreshing") : t("referralLoading");
+        }
+        if (retry) retry.hidden = true;
         try {
-          const response = await loadTeam();
+          let response = await loadTeam();
+          if (response?.error === "network_error") {
+            await new Promise((resolve) => window.setTimeout(resolve, 650));
+            if (sequence !== referralLoadSequence || referralRewardsLayer.hidden) return;
+            response = await loadTeam();
+          }
           if (sequence !== referralLoadSequence || referralRewardsLayer.hidden) return;
           if (!response || response.ok === false || response.success === false) {
             throw new Error(response?.message || t("referralLoadError"));
@@ -14094,7 +14223,6 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           const data = responseData(response);
           if (!data || data.ok === false) throw new Error(data?.message || t("referralLoadError"));
           const totals = data.totals || {};
-          const rates = data.rates || {};
           const code = String(data.referralCode || currentUser?.referralCode || localStorage.getItem("referralCode") || "");
           const fallbackLink = String(data.referralLink || currentUser?.referralLink || localStorage.getItem("referralLink") || "");
           const link = code
@@ -14102,19 +14230,15 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             : fallbackLink;
           document.getElementById("referralRewardsCode").textContent = code || "—";
           document.getElementById("referralRewardsLink").value = link;
-          document.getElementById("referralTotalMembers").textContent = String(Number(totals.members) || 0);
-          document.getElementById("referralActiveMembers").textContent = String(Number(totals.active) || 0);
-          document.getElementById("referralTotalEarnings").textContent = referralFormatAmount(totals.earnings);
-          document.getElementById("referralLevelOneRate").textContent =
-            `${(Number(rates.level1 || 0) * 100).toLocaleString(currentLanguage, { maximumFractionDigits: 2 })}%`;
-          document.getElementById("referralLevelTwoRate").textContent =
-            `${(Number(rates.level2 || 0) * 100).toLocaleString(currentLanguage, { maximumFractionDigits: 2 })}%`;
-          renderReferralMembers(data);
+          applyReferralTeamData(data);
+          saveReferralTeamCache(data);
           if (state) state.hidden = true;
-          if (content) content.hidden = false;
+          if (retry) retry.hidden = true;
         } catch (error) {
           if (sequence !== referralLoadSequence || referralRewardsLayer.hidden) return;
-          showReferralLoadError(error?.message || "");
+          showReferralLoadError(error?.message || "", hasCachedData);
+        } finally {
+          if (retry) retry.disabled = false;
         }
       }
 
@@ -14129,6 +14253,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         referralRewardsLayer.hidden = false;
         referralRewardsLayer.scrollTop = 0;
         referralRewardsLayer.setAttribute("aria-hidden", "false");
+        const content = document.getElementById("referralRewardsContent");
+        if (content) content.hidden = false;
+        renderReferralStaticInfo();
+        resetReferralTeamInfo();
         document.body.style.overflow = "hidden";
         pushMobileBackHistoryEntry();
         try {
@@ -14154,6 +14282,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       document.getElementById("referralCloseButton")?.addEventListener("click", () => closeReferralRewards());
       document.getElementById("referralRewardsLayer")?.addEventListener("click", (event) => {
         if (event.target === referralRewardsLayer) closeReferralRewards();
+      });
+      document.getElementById("referralRetryButton")?.addEventListener("click", (event) => {
+        event.currentTarget.disabled = true;
+        loadReferralRewardsData();
       });
       document.getElementById("referralCopyButton")?.addEventListener("click", async () => {
         const link = document.getElementById("referralRewardsLink")?.value || "";
