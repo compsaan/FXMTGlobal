@@ -13886,6 +13886,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       const accountDrawer = document.getElementById("accountDrawer");
       const accountDrawerBackdrop = document.getElementById("accountDrawerBackdrop");
       const referralRewardsLayer = document.getElementById("referralRewardsLayer");
+      const referralLandingBase = "https://compsaan.github.io/FXMTGlobal/";
       // Portal the modal outside the isolated app shell so it can cover the fixed neon navigation.
       if (referralRewardsLayer && referralRewardsLayer.parentElement !== document.body) {
         document.body.appendChild(referralRewardsLayer);
@@ -14007,7 +14008,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           const totals = data.totals || {};
           const rates = data.rates || {};
           const code = String(data.referralCode || currentUser?.referralCode || localStorage.getItem("referralCode") || "");
-          const link = String(data.referralLink || currentUser?.referralLink || localStorage.getItem("referralLink") || "");
+          const fallbackLink = String(data.referralLink || currentUser?.referralLink || localStorage.getItem("referralLink") || "");
+          const link = code
+            ? `${referralLandingBase}?ref=${encodeURIComponent(code)}`
+            : fallbackLink;
           document.getElementById("referralRewardsCode").textContent = code || "—";
           document.getElementById("referralRewardsLink").value = link;
           document.getElementById("referralTotalMembers").textContent = String(Number(totals.members) || 0);
