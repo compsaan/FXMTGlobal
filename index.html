@@ -15362,11 +15362,19 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         if (!currentUser || !currentSessionToken) throw new Error("سجّل الدخول أولاً لتحديث بيانات الحساب.");
         const username = String(currentUser.username || localStorage.getItem("username") || "").trim();
         if (!username) throw new Error("تعذر تحديد الحساب لتحديث بياناته.");
+        const refreshEpoch = accountLocalDataEpoch;
+        const sessionToken = currentSessionToken;
+        const isSameAccountSession = () =>
+          refreshEpoch === accountLocalDataEpoch &&
+          !!currentUser &&
+          String(currentUser.username || "").trim().toLowerCase() === username.toLowerCase() &&
+          currentSessionToken === sessionToken;
 
         const profileResponse = requireRefreshResponse_(
           await apiGet({ action:"getProfile", username }),
           "تعذر جلب الملف الشخصي من الخادم."
         );
+        if (!isSameAccountSession()) return;
         const profile = responseData(profileResponse) || {};
         const mappedUser = readUserFromResponse(profileResponse, currentUser) || currentUser;
         const rawBalance = profile.balance ?? profile.currentBalance ?? mappedUser.balance;
@@ -15395,6 +15403,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           await apiGet({ action:"getUserData", username }),
           "تعذر جلب بيانات الحساب من الخادم."
         );
+        if (!isSameAccountSession()) return;
         const accountData = accountResponse || {};
         const remoteAccountData = accountData.data || accountData.payload || {};
         if (!remoteAccountData || typeof remoteAccountData !== "object" || Array.isArray(remoteAccountData)) {
@@ -15405,12 +15414,15 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         if (serverSyncTimestamp > 0) accountSyncSetTs(serverSyncTimestamp);
 
         await syncHistoryFromServer(username, true);
+        if (!isSameAccountSession()) return;
         await syncTransfersFromServer(username, true);
+        if (!isSameAccountSession()) return;
 
         const verificationResponse = requireRefreshResponse_(
           await apiRequest({ action:"getVerificationStatus" }),
           "تعذر تحديث حالة التوثيق من الخادم."
         );
+        if (!isSameAccountSession()) return;
         if (!verificationResponse.verificationStatus) {
           throw new Error("لم يُرجع الخادم حالة التوثيق.");
         }
@@ -15625,6 +15637,14 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       function clearCurrentAuthSession() {
         if (userRefreshTimer) window.clearInterval(userRefreshTimer);
         userRefreshTimer = null;
+        try {
+          if (accountPushTimer) window.clearTimeout(accountPushTimer);
+          accountPushTimer = null;
+          accountLocalDataEpoch++;
+          accountPullRequestId++;
+          accountPulling = false;
+          fxHistorySyncing = false;
+        } catch (error) {}
         balanceSyncSequence++;
         balanceSyncInFlight = null;
         balanceSyncUser = "";
@@ -15645,7 +15665,13 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         } catch (error) {
           return;
         }
-        const cachedUser = readCachedUser();
+        const cachedUserCandidate = readCachedUser();
+        let storedUsername = "";
+        try { storedUsername = localStorage.getItem("username") || ""; } catch (error) {}
+        const cachedUser = cachedUserCandidate &&
+          (!storedUsername || String(cachedUserCandidate.username || "").trim().toLowerCase() === storedUsername.trim().toLowerCase())
+          ? cachedUserCandidate
+          : null;
         if (!savedToken && !cachedUser) return;
         if (savedToken) {
           // Load the saved token before starting any authenticated background work.
@@ -15688,7 +15714,12 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           const response = await Promise.race([request, timeout]);
           const restoredUser = ensureAuthenticatedIdentity(readUserFromResponse(response), "");
           if (!restoredUser?.id) throw new Error("لم يُرجع الخادم بيانات المستخدم.");
-          currentUser = { ...(cachedUser || {}), ...restoredUser };
+          if (restoredUser.username) activateLocalAccountData(restoredUser.username);
+          const matchingCachedUser = cachedUser &&
+            String(cachedUser.username || "").trim().toLowerCase() === String(restoredUser.username || "").trim().toLowerCase()
+            ? cachedUser
+            : {};
+          currentUser = { ...matchingCachedUser, ...restoredUser };
           balanceIsAuthoritative = true;
           recordCurrentDeviceLogin(false);
           syncDeviceHistoryWithServer();
@@ -19141,6 +19172,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           const pick = (k) => d[k] ?? response?.[k] ?? user?.[k] ?? fallback?.[k];
           const incomingUsername = pick("username");
           const previousUsername = localStorage.getItem("username") || "";
+          if (incomingUsername) activateLocalAccountData(incomingUsername);
           if (incomingUsername && previousUsername &&
             incomingUsername.trim().toLowerCase() !== previousUsername.trim().toLowerCase()) {
             ["email", "uid", "fullName"].forEach((key) => localStorage.removeItem(key));
@@ -19226,7 +19258,11 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       async function syncWithdrawalsFromServer(username, serverResponse = null) {
         try {
           if (!username) return;
+          const syncEpoch = accountLocalDataEpoch;
+          const requestedUsername = String(username).trim().toLowerCase();
           const data = serverResponse || await apiGet({ action: "getWithdrawals", username });
+          if (syncEpoch !== accountLocalDataEpoch ||
+            requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return;
           if (!data || data.ok === false) return;
           const rows = (responseData(data).withdrawals || data.withdrawals || []);
           if (!Array.isArray(rows) || !rows.length) return;
@@ -19262,9 +19298,16 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       }
       async function syncTransfersFromServer(username, requireFresh = false) {
         if (!username) return false;
+        const syncEpoch = accountLocalDataEpoch;
+        const requestedUsername = String(username).trim().toLowerCase();
+        if (requestedUsername !== accountLocalOwnerName() ||
+          requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
         try {
           const uid = currentUser?.uid || localStorage.getItem("uid") || "";
           const response = await apiGet({ action: "getTransfers", username, uid });
+          if (syncEpoch !== accountLocalDataEpoch ||
+            requestedUsername !== accountLocalOwnerName() ||
+            requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
           if (!response || response.ok === false) {
             if (requireFresh) throw new Error(response?.message || "تعذر تحديث التحويلات من الخادم.");
             return false;
@@ -19339,12 +19382,15 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       let fxHistorySyncing = false;
       async function syncHistoryFromServer(username, requireFresh = false) {
         if (!username) return false;
+        const historyEpoch = accountLocalDataEpoch;
+        const requestedUsername = String(username).trim().toLowerCase();
         if (fxHistorySyncing) {
           if (!requireFresh) return false;
           const waitStartedAt = Date.now();
           while (fxHistorySyncing && Date.now() - waitStartedAt < 30000) {
             await new Promise((resolve) => window.setTimeout(resolve, 100));
           }
+          if (historyEpoch !== accountLocalDataEpoch || requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
           if (fxHistorySyncing) throw new Error("ما زال تحديث سجل العمليات السابق قيد التنفيذ.");
         }
         fxHistorySyncing = true;
@@ -19353,6 +19399,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             apiGet({ action: "getDeposits", username }),
             apiGet({ action: "getWithdrawals", username })
           ]);
+          if (historyEpoch !== accountLocalDataEpoch || requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
           if (requireFresh && (!dep || dep.ok === false || !wd || wd.ok === false)) {
             throw new Error(dep?.message || wd?.message || "تعذر جلب سجل الإيداع والسحب من الخادم.");
           }
@@ -19414,7 +19461,9 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           console.error("History sync failed:", e);
           if (requireFresh) throw e;
           return false;
-        } finally { fxHistorySyncing = false; }
+        } finally {
+          if (historyEpoch === accountLocalDataEpoch) fxHistorySyncing = false;
+        }
       }
       // ===== مزامنة كامل بيانات الحساب مع جدول البيانات =====
       // كل ما يخص المستخدم (سجل المحفظة، طلبات الإيداع/السحب/التحويل)
@@ -19425,15 +19474,138 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         "fxmt-withdraw-requests",
         "fxmt-sync-log-v1"
       ];
+      const ACCOUNT_USER_SCOPED_LIST_KEYS = new Set([
+        "fxmt-wallet-activity-v1",
+        "fxmt-deposit-requests",
+        "fxmt-withdraw-requests"
+      ]);
       const ACCOUNT_SYNC_TS_KEY = "fxmt-account-sync-ts";
+      const ACCOUNT_LOCAL_OWNER_KEY = "fxmt-local-account-owner-v1";
+      const ACCOUNT_LOCAL_CACHE_PREFIX = "fxmt-account-local-cache-v1:";
       let accountPushTimer = null;
       let accountPulling = false;
+      let accountLocalDataEpoch = 0;
+      let accountPullRequestId = 0;
+
+      function accountLocalCachePrefix(username) {
+        const normalized = String(username || "").trim().toLowerCase();
+        return ACCOUNT_LOCAL_CACHE_PREFIX + encodeURIComponent(normalized) + ":";
+      }
+      function accountLocalCacheKey(username, key) {
+        return accountLocalCachePrefix(username) + key;
+      }
+      function accountLocalOwnerName() {
+        try { return String(localStorage.getItem(ACCOUNT_LOCAL_OWNER_KEY) || "").trim().toLowerCase(); } catch (e) { return ""; }
+      }
+      function accountLocalLiveKeys() {
+        const keys = [...ACCOUNT_SYNC_KEYS, ACCOUNT_SYNC_TS_KEY];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.indexOf("fxmt-sync-simulation-v2:") === 0) keys.push(key);
+          }
+        } catch (e) {}
+        return [...new Set(keys)];
+      }
+      function activateLocalAccountData(username) {
+        const target = String(username || "").trim();
+        if (!target) return false;
+        try {
+          const targetNormalized = target.toLowerCase();
+          const savedOwner = String(localStorage.getItem(ACCOUNT_LOCAL_OWNER_KEY) || "").trim();
+
+          // The old shared caches have no reliable owner marker. Clear them once;
+          // the authenticated account will repopulate its own data from the server.
+          if (!savedOwner) {
+            accountLocalDataEpoch++;
+            accountPullRequestId++;
+            accountPulling = false;
+            if (accountPushTimer) window.clearTimeout(accountPushTimer);
+            accountPushTimer = null;
+            accountLocalLiveKeys().forEach((key) => localStorage.removeItem(key));
+            ACCOUNT_SYNC_KEYS.forEach((key) => localStorage.setItem(key, "[]"));
+            localStorage.removeItem(cachedUserStorageKey);
+            walletActivityRemoteTransfers = [];
+            try { fxHistorySyncing = false; } catch (e) {}
+            localStorage.setItem(ACCOUNT_LOCAL_OWNER_KEY, target);
+            return true;
+          }
+
+          const owner = savedOwner.toLowerCase();
+          if (owner === targetNormalized) return false;
+
+          accountLocalDataEpoch++;
+          accountPullRequestId++;
+          accountPulling = false;
+          if (accountPushTimer) window.clearTimeout(accountPushTimer);
+          accountPushTimer = null;
+          try { fxHistorySyncing = false; } catch (e) {}
+
+          // Preserve each account's local cache separately before changing users.
+          accountLocalLiveKeys().forEach((key) => {
+            const value = localStorage.getItem(key);
+            if (value !== null) localStorage.setItem(accountLocalCacheKey(owner, key), value);
+            localStorage.removeItem(key);
+          });
+          ACCOUNT_SYNC_KEYS.forEach((key) => {
+            const value = localStorage.getItem(accountLocalCacheKey(target, key));
+            localStorage.setItem(key, value === null ? "[]" : value);
+          });
+          localStorage.removeItem(cachedUserStorageKey);
+          const savedTs = localStorage.getItem(accountLocalCacheKey(target, ACCOUNT_SYNC_TS_KEY));
+          if (savedTs === null) localStorage.removeItem(ACCOUNT_SYNC_TS_KEY);
+          else localStorage.setItem(ACCOUNT_SYNC_TS_KEY, savedTs);
+
+          const targetPrefix = accountLocalCachePrefix(target);
+          const cachedSimulationKeys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.indexOf(targetPrefix) === 0) {
+              const liveKey = key.slice(targetPrefix.length);
+              if (liveKey.indexOf("fxmt-sync-simulation-v2:") === 0) {
+                cachedSimulationKeys.push({ cacheKey: key, liveKey });
+              }
+            }
+          }
+          cachedSimulationKeys.forEach(({ cacheKey, liveKey }) => {
+            localStorage.setItem(liveKey, localStorage.getItem(cacheKey));
+          });
+          walletActivityRemoteTransfers = [];
+          localStorage.setItem(ACCOUNT_LOCAL_OWNER_KEY, target);
+          return true;
+        } catch (e) {
+          console.error("Account-local data switch failed:", e);
+          return false;
+        }
+      }
 
       function accountSyncGetTs() {
         try { return Number(localStorage.getItem(ACCOUNT_SYNC_TS_KEY) || 0) || 0; } catch (e) { return 0; }
       }
       function accountSyncSetTs(ts) {
         try { localStorage.setItem(ACCOUNT_SYNC_TS_KEY, String(ts)); } catch (e) {}
+      }
+      function accountSyncAllowedUserIds() {
+        const user = currentUser || {};
+        const values = [user.id, user.serverId, user.uid];
+        try { values.push(localStorage.getItem("uid"), localStorage.getItem("userId")); } catch (e) {}
+        return new Set(values.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean));
+      }
+      function accountSyncFilterOwnedEntries(raw) {
+        let entries;
+        try { entries = JSON.parse(raw || "[]"); } catch (e) { return { raw, removedForeign: false }; }
+        if (!Array.isArray(entries)) return { raw, removedForeign: false };
+        const allowedIds = accountSyncAllowedUserIds();
+        if (!allowedIds.size) return { raw, removedForeign: false };
+        let removedForeign = false;
+        const filtered = entries.filter((entry) => {
+          const ownerId = entry?.userId ?? entry?.uid ?? entry?.ownerUserId ?? entry?.accountUserId;
+          if (ownerId === undefined || ownerId === null || String(ownerId).trim() === "") return true;
+          const belongsToCurrentUser = allowedIds.has(String(ownerId).trim().toLowerCase());
+          if (!belongsToCurrentUser) removedForeign = true;
+          return belongsToCurrentUser;
+        });
+        return { raw: JSON.stringify(filtered), removedForeign };
       }
       function accountSyncCollectPayload() {
         const data = {};
@@ -19444,8 +19616,13 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             const raw = localStorage.getItem(key);
             if (raw !== null && raw !== undefined) {
               if (key === WALLET_ACTIVITY_STORAGE_KEY) {
-                const entries = JSON.parse(raw);
+                const scopedRaw = ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)
+                  ? accountSyncFilterOwnedEntries(raw).raw
+                  : raw;
+                const entries = JSON.parse(scopedRaw);
                 data[key] = JSON.stringify(Array.isArray(entries) ? entries.filter((item) => item?.type !== "transfer") : []);
+              } else if (ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
+                data[key] = accountSyncFilterOwnedEntries(raw).raw;
               } else {
                 data[key] = raw;
               }
@@ -19502,9 +19679,22 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       }
       function accountSyncApplyPayload(data) {
         let changed = false;
+        let removedForeignRecords = false;
+        ACCOUNT_USER_SCOPED_LIST_KEYS.forEach((key) => {
+          try {
+            const localRaw = localStorage.getItem(key);
+            if (localRaw === null) return;
+            const filteredLocal = accountSyncFilterOwnedEntries(localRaw);
+            if (filteredLocal.removedForeign) {
+              localStorage.setItem(key, filteredLocal.raw);
+              changed = true;
+              removedForeignRecords = true;
+            }
+          } catch (e) {}
+        });
         const keys = [...ACCOUNT_SYNC_KEYS, ...Object.keys(data).filter((k) => k.indexOf("fxmt-sync-simulation-v2:") === 0)];
         keys.forEach((key) => {
-          const remoteRaw = data[key];
+          let remoteRaw = data[key];
           if (remoteRaw === undefined || remoteRaw === null) return;
           try {
             const localRaw = localStorage.getItem(key);
@@ -19512,6 +19702,11 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
               const merged = accountSyncMergeSimulation(localRaw, remoteRaw);
               if (merged && merged !== localRaw) { localStorage.setItem(key, merged); changed = true; }
             } else {
+              if (ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
+                const filteredRemote = accountSyncFilterOwnedEntries(remoteRaw);
+                remoteRaw = filteredRemote.raw;
+                if (filteredRemote.removedForeign) removedForeignRecords = true;
+              }
               const merged = accountSyncMergeList(localRaw, remoteRaw);
               if (merged !== (localRaw || "[]")) { localStorage.setItem(key, merged); changed = true; }
             }
@@ -19521,26 +19716,44 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           try { renderRecentTransactions(); } catch (e) {}
           try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (e) {}
         }
+        if (removedForeignRecords && typeof pushAccountDataToServer === "function") pushAccountDataToServer();
       }
       // رفع كل بيانات الحساب إلى الجدول (مؤجّل قليلاً لتجميع التغييرات المتتالية).
       function pushAccountDataToServer() {
         if (accountPushTimer) window.clearTimeout(accountPushTimer);
+        const scheduledUsername = fxUser();
+        const scheduledEpoch = accountLocalDataEpoch;
+        if (!scheduledUsername || scheduledUsername.toLowerCase() !== accountLocalOwnerName()) return;
         accountPushTimer = window.setTimeout(async () => {
+          accountPushTimer = null;
           const username = fxUser();
-          if (!username) return;
+          if (
+            !username ||
+            scheduledEpoch !== accountLocalDataEpoch ||
+            username.toLowerCase() !== scheduledUsername.toLowerCase() ||
+            username.toLowerCase() !== accountLocalOwnerName()
+          ) return;
           const ts = Date.now();
+          const payload = accountSyncCollectPayload();
           try {
-            const res = await apiPost({ action: "saveUserData", username, ts, data: accountSyncCollectPayload() });
-            if (res && res.ok !== false) accountSyncSetTs(ts);
+            const res = await apiPost({ action: "saveUserData", username, ts, data: payload });
+            if (res && res.ok !== false && scheduledEpoch === accountLocalDataEpoch &&
+              fxUser().toLowerCase() === username.toLowerCase()) accountSyncSetTs(ts);
           } catch (e) {}
         }, 1500);
       }
       // استرجاع كل بيانات الحساب من الجدول عند فتح الحساب على أي جهاز.
       async function pullAccountDataFromServer(username) {
         if (!username || accountPulling) return;
+        const requestedUsername = String(username).trim().toLowerCase();
+        if (requestedUsername !== accountLocalOwnerName()) return;
+        const requestId = ++accountPullRequestId;
+        const requestEpoch = accountLocalDataEpoch;
         accountPulling = true;
         try {
           const res = await apiGet({ action: "getUserData", username });
+          if (requestId !== accountPullRequestId || requestEpoch !== accountLocalDataEpoch ||
+            requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return;
           if (!res || res.ok === false) return;
           const d = responseData(res) || {};
           const data = d.data || res.data || d.payload || res.payload;
@@ -19553,7 +19766,9 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           if (serverTs) accountSyncSetTs(serverTs);
         } catch (e) {
           console.error("Account data sync failed:", e);
-        } finally { accountPulling = false; }
+        } finally {
+          if (requestId === accountPullRequestId) accountPulling = false;
+        }
       }
 
       async function syncBalanceFromServer() {
