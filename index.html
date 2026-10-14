@@ -10386,6 +10386,26 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
 
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+      <div class="account-violation-overlay" id="accountViolationNotice" hidden aria-hidden="true">
+        <section class="account-violation-card" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="accountViolationTitle" aria-describedby="accountViolationMessage">
+          <div class="account-violation-icon" aria-hidden="true"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <span class="account-violation-eyebrow" id="accountViolationEyebrow">إشعار أمني</span>
+          <h2 id="accountViolationTitle">تم إيقاف الحساب</h2>
+          <p class="account-violation-message" id="accountViolationMessage"></p>
+          <div class="account-violation-restriction">
+            <i class="fa-solid fa-ban" aria-hidden="true"></i>
+            <span id="accountViolationRestriction"></span>
+          </div>
+          <div class="account-violation-countdown">
+            <span id="accountViolationReturnLabel">العودة إلى واجهة الترحيب خلال</span>
+            <strong id="accountViolationCountdown" role="timer" aria-live="polite">6</strong>
+            <span id="accountViolationSeconds">ثوانٍ</span>
+          </div>
+          <div class="account-violation-progress" aria-hidden="true"><span id="accountViolationProgress"></span></div>
+          <p class="account-violation-support" id="accountViolationSupport"></p>
+        </section>
+      </div>
+
       <div class="scroll-area" id="scrollArea">
         <section class="hero" aria-label="بيانات الحساب والرصيد" data-i18n-aria="accountBalanceAria">
       <div class="hero-neon-field" aria-hidden="true">
@@ -14849,13 +14869,85 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         if (event.key === "Escape") closeCountryMenu();
       });
 
+      let accountViolationRedirectTimer = null;
+      let accountViolationCountdownTimer = null;
+      let accountViolationNoticeActive = false;
+
+      function showAccountViolationNotice() {
+        const layer = document.getElementById("accountViolationNotice");
+        if (!layer) return;
+        if (accountViolationNoticeActive) return;
+        accountViolationNoticeActive = true;
+        clearCurrentAuthSession();
+
+        const isArabic = currentLanguage === "ar";
+        document.getElementById("accountViolationEyebrow").textContent = isArabic ? "إشعار أمني" : "SECURITY NOTICE";
+        document.getElementById("accountViolationTitle").textContent = isArabic ? "تم إيقاف الحساب" : "Account suspended";
+        document.getElementById("accountViolationMessage").textContent = isArabic
+          ? "بعد مراجعة الإدارة، تبيّن أن الحساب خالف إرشادات المنصة. أُوقفت الجلسات المرتبطة به، وحُظر اسم المستخدم والبريد المسجّل من إنشاء حساب جديد."
+          : "After an administrative review, the account was found to have violated the platform guidelines. Its sessions have been suspended, and its username and registered email are blocked from creating another account.";
+        document.getElementById("accountViolationRestriction").textContent = isArabic
+          ? "إجراء إداري: لا يمكن إعادة التسجيل ببيانات هذا الحساب."
+          : "Administrative action: this account's details cannot be used to register again.";
+        document.getElementById("accountViolationReturnLabel").textContent = isArabic
+          ? "العودة إلى واجهة الترحيب خلال"
+          : "Returning to the welcome screen in";
+        document.getElementById("accountViolationSeconds").textContent = isArabic ? "ثوانٍ" : "seconds";
+        document.getElementById("accountViolationSupport").textContent = isArabic
+          ? "إذا كنت ترى أن القرار صدر بالخطأ، يرجى التواصل مع إدارة المنصة."
+          : "If you believe this decision was made in error, please contact the platform administration.";
+
+        const welcomeScreenElement = document.getElementById("welcomeScreen");
+        welcomeScreenElement?.classList.remove("is-hidden");
+        showWelcomeIntro();
+        const countdown = document.getElementById("accountViolationCountdown");
+        const progress = document.getElementById("accountViolationProgress");
+        let remaining = 6;
+        countdown.textContent = String(remaining);
+        layer.hidden = false;
+        layer.setAttribute("aria-hidden", "false");
+        progress.style.transition = "none";
+        progress.style.width = "100%";
+        void progress.offsetWidth;
+        window.requestAnimationFrame(() => {
+          progress.style.transition = "width 6s linear";
+          progress.style.width = "0%";
+        });
+        layer.querySelector(".account-violation-card")?.focus();
+
+        if (accountViolationCountdownTimer) window.clearInterval(accountViolationCountdownTimer);
+        if (accountViolationRedirectTimer) window.clearTimeout(accountViolationRedirectTimer);
+        accountViolationCountdownTimer = window.setInterval(() => {
+          remaining = Math.max(0, remaining - 1);
+          countdown.textContent = String(remaining);
+          if (remaining <= 0) {
+            window.clearInterval(accountViolationCountdownTimer);
+            accountViolationCountdownTimer = null;
+          }
+        }, 1000);
+        accountViolationRedirectTimer = window.setTimeout(() => {
+          layer.hidden = true;
+          layer.setAttribute("aria-hidden", "true");
+          accountViolationNoticeActive = false;
+          accountViolationRedirectTimer = null;
+          if (accountViolationCountdownTimer) window.clearInterval(accountViolationCountdownTimer);
+          accountViolationCountdownTimer = null;
+          showWelcomeIntro();
+          welcomeScreenElement?.classList.remove("is-hidden");
+        }, 6000);
+      }
+
       function handleInvalidSessionResponse(result, requestSessionToken) {
         const code = String(result?.error || result?.code || "").toLowerCase();
         if (
           !requestSessionToken ||
-          requestSessionToken !== currentSessionToken ||
-          !["invalid_session", "session_expired", "user_not_found"].includes(code)
+          requestSessionToken !== currentSessionToken
         ) return;
+        if (["account_banned", "user_not_found"].includes(code)) {
+          showAccountViolationNotice();
+          return;
+        }
+        if (!["invalid_session", "session_expired"].includes(code)) return;
         clearCurrentAuthSession();
         showWelcomeIntro();
         welcomeScreen.classList.remove("is-hidden");
@@ -15746,7 +15838,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           pullAccountDataFromServer(currentUser.username || localStorage.getItem("username") || "");
           welcomeScreen.classList.add("is-hidden");
         } catch (error) {
-          if (["invalid_session", "session_expired", "user_not_found"].includes(error.code)) {
+          if (["invalid_session", "session_expired", "user_not_found", "account_banned"].includes(error.code)) {
             if (currentSessionToken === savedToken) {
               clearCurrentAuthSession();
               showWelcomeIntro();
@@ -16166,6 +16258,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           setAuthStatus(loginStatus, t("loginSuccess"), true);
           setTimeout(() => closeWelcome(t("loginSuccess")), 350);
         } catch (error) {
+          if (error.code === "account_banned") {
+            showAccountViolationNotice();
+            return;
+          }
           setAuthStatus(loginStatus, error.message || "تعذر تسجيل الدخول.");
         } finally {
           setAuthSubmitting(submitButton, false);
@@ -25165,6 +25261,152 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     font-size: 9px;
     line-height: 1.35;
     overflow-wrap: anywhere;
+  }
+</style>
+
+<style id="account-violation-notice-style">
+  .account-violation-overlay[hidden] {
+    display: none !important;
+  }
+  .account-violation-overlay {
+    position: fixed;
+    z-index: 60000;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(120, 20, 34, .27), transparent 55%),
+      rgba(7, 9, 15, .82);
+    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(15px);
+    animation: accountViolationBackdropIn .24s ease-out both;
+  }
+  .account-violation-card {
+    position: relative;
+    width: min(100%, 460px);
+    max-height: min(90vh, 680px);
+    overflow: auto;
+    padding: 30px clamp(22px, 6vw, 40px) 26px;
+    border: 1px solid rgba(255, 84, 99, .38);
+    border-radius: 26px;
+    outline: none;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(172, 36, 51, .21), transparent 44%),
+      linear-gradient(155deg, #191a22 0%, #101116 72%);
+    box-shadow: 0 26px 90px rgba(0, 0, 0, .58), 0 0 45px rgba(205, 48, 62, .12);
+    color: #f8f7fa;
+    text-align: center;
+    direction: rtl;
+    animation: accountViolationCardIn .34s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .account-violation-icon {
+    width: 68px;
+    height: 68px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 17px;
+    border: 1px solid rgba(255, 95, 105, .35);
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(226, 54, 69, .25), rgba(101, 23, 32, .3));
+    color: #ff5867;
+    font-size: 29px;
+    box-shadow: 0 8px 30px rgba(216, 47, 63, .16), inset 0 1px rgba(255,255,255,.08);
+  }
+  .account-violation-eyebrow {
+    display: inline-block;
+    margin-bottom: 9px;
+    color: #ff7882;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+  }
+  .account-violation-card h2 {
+    margin: 0 0 12px;
+    color: #fff;
+    font-size: clamp(23px, 6vw, 29px);
+    font-weight: 850;
+    line-height: 1.35;
+  }
+  .account-violation-message {
+    margin: 0 auto;
+    max-width: 370px;
+    color: #d1d0d7;
+    font-size: 14px;
+    line-height: 1.9;
+  }
+  .account-violation-restriction {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 87, 100, .2);
+    border-radius: 14px;
+    background: rgba(135, 25, 38, .16);
+    color: #ffb0b7;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.7;
+    text-align: start;
+  }
+  .account-violation-restriction i {
+    flex: 0 0 auto;
+    color: #ff6572;
+    font-size: 15px;
+  }
+  .account-violation-countdown {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 22px;
+    color: #c7c5ce;
+    font-size: 12px;
+  }
+  .account-violation-countdown strong {
+    min-width: 31px;
+    color: #fff;
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .account-violation-progress {
+    height: 4px;
+    overflow: hidden;
+    margin-top: 12px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.09);
+  }
+  .account-violation-progress span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff3348, #ff8289);
+    box-shadow: 0 0 12px rgba(255, 65, 82, .45);
+  }
+  .account-violation-support {
+    margin: 15px 0 0;
+    color: #92909b;
+    font-size: 11px;
+    line-height: 1.75;
+  }
+  @keyframes accountViolationBackdropIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes accountViolationCardIn {
+    from { opacity: 0; transform: translateY(12px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @media (max-width: 480px) {
+    .account-violation-overlay { padding: 14px; }
+    .account-violation-card { padding: 25px 21px 22px; border-radius: 22px; }
+    .account-violation-message { font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .account-violation-overlay, .account-violation-card { animation: none; }
   }
 </style>
 
