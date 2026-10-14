@@ -9956,6 +9956,244 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
     .referral-metric span { font-size: 9px; }
   }
 </style>
+<style id="account-operations-notifications-style">
+  .greeting-row { position: relative; z-index: 40; }
+  .notification { position: relative; flex: 0 0 36px; }
+  .notification-badge {
+    position: absolute;
+    inset-block-start: -3px;
+    inset-inline-end: -4px;
+    display: grid;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    place-items: center;
+    border: 1px solid #171022;
+    border-radius: 999px;
+    background: linear-gradient(145deg, #ff7abf, #e94e8c);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 2px 10px rgba(233, 78, 140, .4);
+  }
+  .notification-badge[hidden],
+  .notification-modal-layer[hidden] { display: none !important; }
+  .notification-modal-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: grid;
+    place-items: stretch center;
+    padding: max(14px, calc(env(safe-area-inset-top, 0px) + 8px)) max(10px, env(safe-area-inset-right, 0px)) max(14px, calc(env(safe-area-inset-bottom, 0px) + 8px)) max(10px, env(safe-area-inset-left, 0px));
+    background: rgba(5, 3, 10, .76);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    animation: account-notification-backdrop-in 160ms ease-out;
+  }
+  .notification-popover {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(500px, 100%);
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid rgba(205, 168, 255, .3);
+    border-radius: 24px;
+    background:
+      radial-gradient(90% 32% at 50% 0%, rgba(195, 105, 255, .13), transparent 75%),
+      linear-gradient(145deg, rgba(94, 64, 134, .4), rgba(21, 23, 55, .8));
+    color: #fff2ff;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, .22), 0 0 20px rgba(178, 105, 255, .12), inset 0 1px rgba(255, 255, 255, .12);
+    backdrop-filter: blur(16px) saturate(145%);
+    -webkit-backdrop-filter: blur(16px) saturate(145%);
+    transform-origin: center;
+    animation: account-notification-in 160ms ease-out;
+  }
+  @keyframes account-notification-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes account-notification-in {
+    from { opacity: 0; transform: translateY(-5px) scale(.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .notification-popover-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 12px 8px;
+    border-bottom: 1px solid rgba(205, 168, 255, .23);
+  }
+  .notification-popover-heading { min-width: 0; }
+  .notification-popover-heading h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 750;
+    letter-spacing: -.02em;
+  }
+  .notification-popover-heading p {
+    margin: 3px 0 0;
+    color: rgba(239, 215, 250, .76);
+    font-size: 9px;
+    line-height: 1.35;
+  }
+  .notification-popover-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+  }
+  .notification-read-all {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    padding: 5px 7px;
+    border: 1px solid rgba(199, 157, 255, .18);
+    border-radius: 8px;
+    background: rgba(170, 113, 239, .1);
+    color: #dfc1ff;
+    font-size: 9px;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .notification-read-all:hover {
+    border-color: rgba(218, 184, 255, .42);
+    background: rgba(170, 113, 239, .2);
+  }
+  .notification-close {
+    display: grid;
+    flex: 0 0 30px;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255, 182, 232, .32);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(183, 92, 255, .2), rgba(241, 112, 226, .12));
+    color: #fff0fb;
+    font-size: 13px;
+    transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+  }
+  .notification-close:hover {
+    border-color: rgba(255, 156, 221, .64);
+    background: linear-gradient(135deg, rgba(183, 92, 255, .32), rgba(241, 112, 226, .24));
+    transform: rotate(5deg);
+  }
+  .notification-close:focus-visible {
+    outline: 2px solid rgba(203, 162, 255, .8);
+    outline-offset: 2px;
+  }
+  .notification-list {
+    display: grid;
+    flex: 1 1 auto;
+    align-content: start;
+    grid-auto-rows: max-content;
+    gap: 0;
+    min-height: 0;
+    padding: 4px 10px 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(196, 154, 239, .34) transparent;
+  }
+  .account-notification-item {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 7px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 8px;
+    border: 0;
+    border-bottom: 1px solid rgba(205, 168, 255, .2);
+    border-radius: 0;
+    background: transparent;
+    text-align: start;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .account-notification-item:last-child { border-bottom: 0; }
+  .account-notification-item:hover,
+  .account-notification-item:focus-visible {
+    border-bottom-color: rgba(218, 135, 255, .4);
+    background: rgba(183, 92, 255, .1);
+  }
+  .account-notification-item:focus-visible { outline: 2px solid rgba(203, 162, 255, .7); outline-offset: -2px; }
+  .account-notification-icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid rgba(218, 135, 255, .3);
+    border-radius: 10px;
+    background: linear-gradient(145deg, rgba(183, 92, 255, .28), rgba(241, 112, 226, .2) 58%, rgba(86, 59, 125, .28));
+    color: #f1d7ff;
+    font-size: 11px;
+  }
+  .account-notification-icon.deposit { color: #70e4ba; }
+  .account-notification-icon.withdraw { color: #ff9ab8; }
+  .account-notification-icon.transfer { color: #a9baff; }
+  .account-notification-icon.login { color: #8ce5c1; }
+  .account-notification-icon.setting { color: #d1a8ff; }
+  .account-notification-icon.security { color: #ffb6a1; }
+  .account-notification-copy { display: grid; min-width: 0; gap: 4px; }
+  .account-notification-title {
+    overflow: hidden;
+    color: #f8f2ff;
+    font-size: 11px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .account-notification-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 7px;
+    color: rgba(225, 212, 239, .58);
+    font-size: 9px;
+    line-height: 1.4;
+  }
+  .account-notification-amount,
+  .account-notification-description { color: #e8dcf4; font-weight: 550; }
+  .account-notification-amount { font-weight: 650; }
+  .account-notification-status { white-space: nowrap; }
+  .account-notification-status.pending { color: #f6c86e; }
+  .account-notification-status.completed { color: #72ddb4; }
+  .account-notification-status.rejected { color: #ff91a7; }
+  .account-notification-unread {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #da9bff;
+    box-shadow: 0 0 10px rgba(218, 155, 255, .72);
+  }
+  .account-notification-item.is-read .account-notification-unread { visibility: hidden; }
+  .notification-empty {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 27px 18px 30px;
+    color: rgba(230, 216, 245, .62);
+    text-align: center;
+  }
+  .notification-empty i { color: #c39be9; font-size: 21px; }
+  .notification-empty strong { color: #f5edfc; font-size: 11px; font-weight: 650; }
+  .notification-empty span { max-width: 245px; font-size: 10px; line-height: 1.7; }
+  @media (prefers-reduced-motion: reduce) {
+    .notification-modal-layer,
+    .notification-popover { animation: none; }
+  }
+  @media (max-width: 380px) {
+    .notification-popover { width: min(380px, calc(100vw - clamp(36px, 12vw, 48px))); }
+    .notification-popover-header { padding-inline: 12px; }
+    .notification-list { padding: 5px; }
+  }
+</style>
 </head>
   <body>
     <style id="pull-refresh-style">
@@ -10435,12 +10673,30 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
                 </div>
               </div>
             </div>
-            <button class="notification" id="notificationButton" aria-label="Open notifications" data-i18n-aria="notifications">
+            <button class="notification" id="notificationButton" type="button" aria-label="Open notifications" data-i18n-aria="notifications" aria-expanded="false" aria-controls="notificationPopover">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6.3 10.5a5.7 5.7 0 0 1 11.4 0c0 6.1 2.3 6.1 2.3 7.3H4c0-1.2 2.3-1.2 2.3-7.3Z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" />
                 <path d="M9.5 20.2a3 3 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" />
               </svg>
+              <span class="notification-badge" id="notificationBadge" aria-hidden="true" hidden></span>
             </button>
+            <div class="notification-modal-layer" id="notificationPopover" hidden>
+              <section class="notification-popover" role="dialog" aria-modal="true" aria-labelledby="accountNotificationsHeading">
+                <header class="notification-popover-header">
+                  <div class="notification-popover-heading">
+                    <h2 id="accountNotificationsHeading" data-i18n="accountNotificationsTitle">إشعارات الحساب</h2>
+                    <p id="notificationSummary"></p>
+                  </div>
+                  <div class="notification-popover-actions">
+                    <button class="notification-read-all" id="notificationReadAll" type="button" data-i18n="accountNotificationsMarkRead" hidden>قراءة الكل</button>
+                    <button class="notification-close" id="notificationClose" type="button" aria-label="إغلاق الإشعارات" data-i18n-aria="accountNotificationsClose">
+                      <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </header>
+                <div class="notification-list" id="notificationList" aria-live="polite"></div>
+              </section>
+            </div>
           </div>
 
           <div class="balance-header">
@@ -12207,6 +12463,28 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         copyUsername: "Copy username",
         copyUid: "Copy UID",
         notifications: "Open notifications",
+        accountNotificationsTitle: "Account activity",
+        accountNotificationsClose: "Close notifications",
+        accountNotificationsMarkRead: "Mark all read",
+        accountNotificationsSignIn: "Sign in to view account activity.",
+        accountNotificationsEmpty: "No account activity yet",
+        accountNotificationsEmptyHint: "Deposits, withdrawals, transfers, sign-ins, and account changes will appear here.",
+        accountNotificationsSummary: "{count} notifications · {unread} unread",
+        accountNotificationDeposit: "Deposit",
+        accountNotificationWithdraw: "Withdrawal",
+        accountNotificationTransfer: "Transfer",
+        accountNotificationLoginTitle: "New sign-in",
+        accountNotificationLoginDetail: "Signed in from {device}.",
+        accountNotificationSettingsTitle: "Account settings changed",
+        accountNotificationLanguageDetail: "Interface language changed to {language}.",
+        accountNotificationSecurityTitle: "Password updated",
+        accountNotificationPasswordResetDetail: "Your password was reset successfully.",
+        accountNotificationPasswordChangeDetail: "Your password was changed successfully.",
+        accountNotificationThisDevice: "this device",
+        accountNotificationPending: "Processing",
+        accountNotificationCompleted: "Completed",
+        accountNotificationRejected: "Rejected",
+        accountNotificationDateUnavailable: "Date unavailable",
         totalBalance: "Total Balance",
         totalAssets: "Total assets (USDT)",
         todayProfit: "Today's profit",
@@ -12500,6 +12778,28 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           copyUsername: "نسخ اسم المستخدم",
           copyUid: "نسخ UID",
           notifications: "فتح الإشعارات",
+          accountNotificationsTitle: "إشعارات الحساب",
+          accountNotificationsClose: "إغلاق الإشعارات",
+          accountNotificationsMarkRead: "قراءة الكل",
+          accountNotificationsSignIn: "سجّل الدخول لعرض عمليات الحساب.",
+          accountNotificationsEmpty: "لا توجد إشعارات حساب بعد",
+          accountNotificationsEmptyHint: "ستظهر هنا عمليات الإيداع والسحب والتحويل وتسجيلات الدخول وتغييرات الحساب.",
+          accountNotificationsSummary: "التنبيهات: {count} · غير المقروء: {unread}",
+          accountNotificationDeposit: "إيداع",
+          accountNotificationWithdraw: "سحب",
+          accountNotificationTransfer: "تحويل",
+          accountNotificationLoginTitle: "تسجيل دخول جديد",
+          accountNotificationLoginDetail: "تم تسجيل الدخول من {device}.",
+          accountNotificationSettingsTitle: "تغيير إعدادات الحساب",
+          accountNotificationLanguageDetail: "تم تغيير لغة الواجهة إلى {language}.",
+          accountNotificationSecurityTitle: "تحديث كلمة المرور",
+          accountNotificationPasswordResetDetail: "تمت إعادة تعيين كلمة المرور بنجاح.",
+          accountNotificationPasswordChangeDetail: "تم تغيير كلمة المرور بنجاح.",
+          accountNotificationThisDevice: "هذا الجهاز",
+          accountNotificationPending: "قيد المعالجة",
+          accountNotificationCompleted: "مكتمل",
+          accountNotificationRejected: "مرفوض",
+          accountNotificationDateUnavailable: "التاريخ غير متاح",
           totalBalance: "إجمالي الرصيد",
           totalAssets: "إجمالي الأصول (USDT)",
           todayProfit: "أرباح اليوم",
@@ -13925,14 +14225,23 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
 
       function setCurrentLanguage(language, announce = true) {
         if (!translations[language]) return;
+        const previousLanguage = currentLanguage;
         currentLanguage = language;
         if (typeof updateAccountVerificationBadge === "function") updateAccountVerificationBadge(currentUser?.verificationStatus || "Unverified");
         localStorage.setItem(languageStorageKey, currentLanguage);
         languageSelect.value = currentLanguage;
         applyStaticTranslations();
         closeLanguageMenu();
+        const selectedOption = languageSelect.options[languageSelect.selectedIndex];
+        if (currentUser?.username && previousLanguage !== currentLanguage) {
+          recordAccountNotificationEvent("setting", {
+            identity: currentUser.username,
+            titleKey: "accountNotificationSettingsTitle",
+            detailKey: "accountNotificationLanguageDetail",
+            detailVariables: { language: selectedOption?.textContent || currentLanguage }
+          });
+        }
         if (announce) {
-          const selectedOption = languageSelect.options[languageSelect.selectedIndex];
           showToast(t("languageChanged", { language: selectedOption?.textContent || language }));
         }
       }
@@ -16170,6 +16479,11 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         try {
           const result = await completePasswordReset(identifier, code, newPassword, confirmPassword);
           if (!result || result.ok !== true) throw new Error(result?.message || "تعذّر تحديث كلمة المرور.");
+          recordAccountNotificationEvent("security", {
+            identity: identifier,
+            titleKey: "accountNotificationSecurityTitle",
+            detailKey: "accountNotificationPasswordResetDetail"
+          });
           resetCodeSent = false;
           passwordResetForm.reset();
           passwordResetCodeField.hidden = true;
@@ -16666,10 +16980,221 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         });
       });
 
-      document.getElementById("notificationButton").addEventListener("click", (event) => {
-        event.currentTarget.classList.toggle("is-active");
-        showToast(t("caughtUp"));
+      const notificationButton = document.getElementById("notificationButton");
+      const notificationPopover = document.getElementById("notificationPopover");
+      // The bell lives inside the scrolling hero, which creates a stacking context.
+      // Portal the modal to body so it cannot be clipped or rendered behind the app.
+      if (notificationPopover.parentElement !== document.body) {
+        document.body.appendChild(notificationPopover);
+      }
+      const notificationList = document.getElementById("notificationList");
+      const notificationBadge = document.getElementById("notificationBadge");
+      const notificationSummary = document.getElementById("notificationSummary");
+      const notificationReadAll = document.getElementById("notificationReadAll");
+      const notificationCloseButton = document.getElementById("notificationClose");
+      const accountNotificationReadKey = () =>
+        `fxmt-account-notifications-read-v1:${String(currentUser?.username || "").trim().toLowerCase()}`;
+      const accountNotificationEventsKey = (identity) =>
+        `fxmt-account-notification-events-v1:${encodeURIComponent(String(identity || "").trim().toLowerCase())}`;
+      const accountNotificationRecordKey = (record) => `${record.type}:${record.id}`;
+      const accountNotificationAliases = (user) => [...new Set([
+        user?.username, user?.email, user?.id, user?.serverId, user?.uid
+      ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean))];
+      const readAccountNotificationEvents = (user) => {
+        const events = [];
+        accountNotificationAliases(user).forEach((identity) => {
+          try {
+            const saved = JSON.parse(localStorage.getItem(accountNotificationEventsKey(identity)) || "[]");
+            if (Array.isArray(saved)) {
+              saved.forEach((event) => {
+                if (event && event.id && ["login", "setting", "security"].includes(event.type)) events.push(event);
+              });
+            }
+          } catch (error) {}
+        });
+        return [...new Map(events.map((event) => [String(event.id), event])).values()];
+      };
+      const recordAccountNotificationEvent = (type, options = {}) => {
+        const identity = String(options.identity || currentUser?.username || "").trim().toLowerCase();
+        if (!identity || !["login", "setting", "security"].includes(type)) return null;
+        const storageKey = accountNotificationEventsKey(identity);
+        const event = {
+          id: `event-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+          type,
+          titleKey: options.titleKey || "",
+          detailKey: options.detailKey || "",
+          detailVariables: options.detailVariables || {},
+          createdAt: new Date().toISOString()
+        };
+        try {
+          const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+          const events = Array.isArray(saved) ? saved : [];
+          events.unshift(event);
+          localStorage.setItem(storageKey, JSON.stringify(events.slice(0, 50)));
+        } catch (error) {}
+        if (currentUser?.username) renderAccountNotifications();
+        return event;
+      };
+      const accountNotificationStatus = (status) => {
+        const value = String(status || "").trim().toLowerCase();
+        if (["completed", "approved", "success", "successful", "confirmed", "paid"].includes(value)) return "completed";
+        if (["rejected", "failed", "failure", "cancelled", "canceled", "declined", "error"].includes(value)) return "rejected";
+        return "pending";
+      };
+      const getAccountNotificationRecords = () => {
+        const username = String(currentUser?.username || "").trim().toLowerCase();
+        if (!username) return [];
+        const transactions = typeof walletActivityGetAll === "function"
+          ? walletActivityGetAll().filter((record) => ["deposit", "withdraw", "transfer"].includes(record.type))
+          : [];
+        return [...transactions, ...readAccountNotificationEvents(currentUser)]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 8);
+      };
+      const closeAccountNotifications = (restoreFocus = false) => {
+        notificationPopover.hidden = true;
+        notificationButton.setAttribute("aria-expanded", "false");
+        notificationButton.classList.remove("is-active");
+        if (restoreFocus) notificationButton.focus();
+      };
+      const renderAccountNotifications = () => {
+        const username = String(currentUser?.username || "").trim().toLowerCase();
+        const records = username ? getAccountNotificationRecords() : [];
+        const readKey = username ? accountNotificationReadKey() : "";
+        let readIds = new Set();
+        if (readKey) {
+          try {
+            const saved = JSON.parse(localStorage.getItem(readKey) || "[]");
+            if (Array.isArray(saved)) readIds = new Set(saved.map(String));
+            else localStorage.setItem(readKey, "[]");
+          } catch (error) {}
+        }
+        const unreadCount = records.filter((record) => !readIds.has(accountNotificationRecordKey(record))).length;
+        notificationBadge.textContent = unreadCount > 9 ? "9+" : new Intl.NumberFormat(currentLanguage || "ar").format(unreadCount);
+        notificationBadge.hidden = unreadCount === 0;
+        notificationReadAll.hidden = unreadCount === 0;
+        notificationSummary.textContent = t("accountNotificationsSummary", {
+          count: new Intl.NumberFormat(currentLanguage || "ar").format(records.length),
+          unread: new Intl.NumberFormat(currentLanguage || "ar").format(unreadCount)
+        });
+
+        if (!username) {
+          notificationList.innerHTML = `<div class="notification-empty"><i class="fa-solid fa-user-lock" aria-hidden="true"></i><strong>${walletActivityEscape(t("accountNotificationsSignIn"))}</strong></div>`;
+          return;
+        }
+        if (!records.length) {
+          notificationList.innerHTML = `<div class="notification-empty"><i class="fa-regular fa-bell-slash" aria-hidden="true"></i><strong>${walletActivityEscape(t("accountNotificationsEmpty"))}</strong><span>${walletActivityEscape(t("accountNotificationsEmptyHint"))}</span></div>`;
+          return;
+        }
+
+        const labels = {
+          deposit: t("accountNotificationDeposit"),
+          withdraw: t("accountNotificationWithdraw"),
+          transfer: t("accountNotificationTransfer"),
+          login: t("accountNotificationLoginTitle"),
+          setting: t("accountNotificationSettingsTitle"),
+          security: t("accountNotificationSecurityTitle")
+        };
+        const statusLabels = {
+          pending: t("accountNotificationPending"),
+          completed: t("accountNotificationCompleted"),
+          rejected: t("accountNotificationRejected")
+        };
+        notificationList.innerHTML = records.map((record) => {
+          const key = accountNotificationRecordKey(record);
+          const isTransaction = ["deposit", "withdraw", "transfer"].includes(record.type);
+          const status = isTransaction ? accountNotificationStatus(record.status) : "";
+          const icons = {
+            deposit: "fa-arrow-down",
+            withdraw: "fa-arrow-up",
+            transfer: "fa-arrow-right-arrow-left",
+            login: "fa-right-to-bracket",
+            setting: "fa-sliders",
+            security: "fa-shield-halved"
+          };
+          const rawDate = new Date(record.createdAt);
+          let dateLabel = t("accountNotificationDateUnavailable");
+          if (!Number.isNaN(rawDate.getTime())) {
+            try {
+              dateLabel = new Intl.DateTimeFormat(currentLanguage || "ar", { dateStyle: "medium", timeStyle: "short" }).format(rawDate);
+            } catch (error) {
+              dateLabel = rawDate.toLocaleString();
+            }
+          }
+          const detailText = isTransaction
+            ? walletActivityAmount(record)
+            : t(record.detailKey || "accountNotificationThisDevice", record.detailVariables || {});
+          const titleText = isTransaction
+            ? `${labels[record.type]} · ${record.asset || "USDT"}`
+            : labels[record.type] || t("accountNotificationSettingsTitle");
+          const detailMarkup = `<span class="${isTransaction ? "account-notification-amount" : "account-notification-description"}">${walletActivityEscape(detailText)}</span>`;
+          const statusMarkup = isTransaction
+            ? `<span aria-hidden="true">·</span><span class="account-notification-status ${status}">${walletActivityEscape(statusLabels[status])}</span>`
+            : "";
+          return `<button class="account-notification-item${readIds.has(key) ? " is-read" : ""}" type="button" data-notification-key="${walletActivityEscape(key)}" data-notification-type="${walletActivityEscape(record.type)}" data-wallet-activity-id="${isTransaction ? walletActivityEscape(record.id) : ""}">
+            <span class="account-notification-icon ${walletActivityEscape(record.type)}"><i class="fa-solid ${icons[record.type] || "fa-bell"}" aria-hidden="true"></i></span>
+            <span class="account-notification-copy">
+              <span class="account-notification-title">${walletActivityEscape(titleText)}</span>
+              <span class="account-notification-meta">
+                ${detailMarkup}
+                ${statusMarkup}
+                <span aria-hidden="true">·</span>
+                <span>${walletActivityEscape(dateLabel)}</span>
+              </span>
+            </span>
+            <span class="account-notification-unread" aria-hidden="true"></span>
+          </button>`;
+        }).join("");
+
+        notificationList.querySelectorAll("[data-notification-key]").forEach((item) => {
+          item.addEventListener("click", () => {
+            readIds.add(item.dataset.notificationKey);
+            try { localStorage.setItem(readKey, JSON.stringify([...readIds])); } catch (error) {}
+            closeAccountNotifications();
+            if (["deposit", "withdraw", "transfer"].includes(item.dataset.notificationType) &&
+              typeof openWalletActivityDetail === "function") openWalletActivityDetail(item.dataset.walletActivityId);
+            renderAccountNotifications();
+          });
+        });
+      };
+
+      notificationButton.addEventListener("click", () => {
+        if (!notificationPopover.hidden) {
+          closeAccountNotifications();
+          return;
+        }
+        renderAccountNotifications();
+        notificationPopover.hidden = false;
+        notificationButton.setAttribute("aria-expanded", "true");
+        notificationButton.classList.add("is-active");
+        notificationCloseButton.focus();
       });
+      notificationCloseButton.addEventListener("click", () => closeAccountNotifications(true));
+      notificationReadAll.addEventListener("click", () => {
+        const username = String(currentUser?.username || "").trim().toLowerCase();
+        if (!username) return;
+        const readKey = accountNotificationReadKey();
+        const records = getAccountNotificationRecords();
+        try { localStorage.setItem(readKey, JSON.stringify(records.map(accountNotificationRecordKey))); } catch (error) {}
+        renderAccountNotifications();
+      });
+      document.addEventListener("click", (event) => {
+        const notificationDialog = notificationPopover.querySelector(".notification-popover");
+        if (!notificationPopover.hidden && !notificationDialog.contains(event.target) && !notificationButton.contains(event.target)) {
+          closeAccountNotifications();
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !notificationPopover.hidden) closeAccountNotifications(true);
+      });
+      window.addEventListener("storage", (event) => {
+        if (event.key && (event.key.startsWith("fxmt-account-notifications-read-v1:") ||
+          event.key.startsWith("fxmt-account-notification-events-v1:") ||
+          ["fxmt-wallet-activity-v1", "fxmt-deposit-requests", "fxmt-withdraw-requests"].includes(event.key))) {
+          renderAccountNotifications();
+        }
+      });
+      window.setTimeout(renderAccountNotifications, 0);
 
       const balanceVisibilityButton = document.getElementById("balanceVisibilityButton");
       const totalBalance = document.getElementById("totalBalance");
@@ -16913,6 +17438,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           const items = walletActivityReadStorage().filter((item) => item.id !== ownedRecord.id);
           items.unshift(ownedRecord);
           localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, JSON.stringify(items.slice(0, 300)));
+          renderAccountNotifications();
         } catch (error) {}
       };
 
@@ -16952,6 +17478,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             empty.hidden = false;
             list.appendChild(empty);
           }
+          renderAccountNotifications();
           return;
         }
         if (empty) empty.hidden = true;
@@ -16985,6 +17512,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             }
           });
         });
+        renderAccountNotifications();
       };
 
       const copyWalletActivityValue = async (button) => {
@@ -19209,7 +19737,17 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         const previous=history.find(row=>String(row.deviceId||row.id||"")===currentId)||{};
         const previousArchive=isNewLogin?"":previous.archivedAt||previous.signedOutAt||"";
         const currentRecord={...previous,...current,id:currentId,firstSeenAt:deviceTimestamp(previous.firstSeenAt||previous.lastActive,now),lastActive:isNewLogin||!previous.lastActive?now:deviceTimestamp(previous.lastActive,now),current:true,status:previousArchive?"archived":"active",activeSession:true,archivedAt:previousArchive,signedOutAt:previousArchive};
-        const items=[currentRecord,...byId.values()];writeDeviceRows(historyKey,items);return items;
+        const items=[currentRecord,...byId.values()];writeDeviceRows(historyKey,items);
+        if(isNewLogin){
+          const device=[current.os,current.browser].filter(Boolean).join(" · ")||current.name||t("accountNotificationThisDevice");
+          recordAccountNotificationEvent("login",{
+            identity:currentUser?.username,
+            titleKey:"accountNotificationLoginTitle",
+            detailKey:"accountNotificationLoginDetail",
+            detailVariables:{device}
+          });
+        }
+        return items;
       }
       function readActiveDevices(){
         const items=recordCurrentDeviceLogin(false);
@@ -19385,7 +19923,17 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       }
       async function requestPasswordReset(identifier) { return apiPost({ action: "requestPasswordReset", username: identifier }); }
       async function completePasswordReset(identifier, code, newPassword, confirmPassword) { return apiPost({ action: "completePasswordReset", username: identifier, code, newPassword, confirmPassword }); }
-      async function changePassword(oldPassword, newPassword) { return apiPost({ action: "changePassword", username: fxUser(), oldPassword, newPassword }); }
+      async function changePassword(oldPassword, newPassword) {
+        const result = await apiPost({ action: "changePassword", username: fxUser(), oldPassword, newPassword });
+        if (result?.ok === true) {
+          recordAccountNotificationEvent("security", {
+            identity: currentUser?.username || fxUser(),
+            titleKey: "accountNotificationSecurityTitle",
+            detailKey: "accountNotificationPasswordChangeDetail"
+          });
+        }
+        return result;
+      }
       async function submitVerification(fullName, docType, docNumber, docUrl) { return apiPost({ action: "submitVerification", username: fxUser(), fullName, docType, docNumber, docUrl: docUrl || "" }); }
       async function loadBalance() { return apiGet({ action: "getBalance", username: fxUser() }); }
       async function loadProfile() { return apiGet({ action: "getProfile", username: fxUser() }); }
