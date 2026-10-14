@@ -1,0 +1,27 @@
+{
+  "id": "./",
+  "name": "FXMT",
+  "short_name": "FXMT",
+  "description": "منصة استثمار FXMT",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#11091e",
+  "theme_color": "#11091e",
+  "icons": [
+    {
+      "src": "./fxmt-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./fxmt-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
