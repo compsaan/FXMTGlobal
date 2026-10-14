@@ -14919,6 +14919,14 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         return result;
       }
 
+      function responseAccountMatches(result, username) {
+        const expected = String(username || "").trim().toLowerCase();
+        const root = result && typeof result === "object" ? result : {};
+        const data = responseData(root);
+        const actual = String(data.username || root.username || "").trim().toLowerCase();
+        return !actual || !expected || actual === expected;
+      }
+
       function readUserFromResponse(result, fallback = null) {
         const root = result && typeof result === "object" ? result : {};
         const data = responseData(root);
@@ -15656,6 +15664,8 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           localStorage.removeItem(authSessionStorageKey);
           localStorage.removeItem(cachedUserStorageKey);
         } catch (error) {}
+        try { renderRecentTransactions(); } catch (error) {}
+        try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (error) {}
       }
 
       async function restoreSavedSession() {
@@ -15685,6 +15695,8 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           balanceIsAuthoritative = false;
           updateWalletIdentity(currentUser);
           updateCurrentWalletView();
+          renderRecentTransactions();
+          if (typeof renderWalletActivity === "function") renderWalletActivity();
           welcomeScreen.classList.add("is-hidden");
         }
         if (!savedToken) {
@@ -15727,6 +15739,8 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           syncWithdrawStatuses(response);
           updateWalletIdentity(currentUser);
           updateCurrentWalletView();
+          renderRecentTransactions();
+          if (typeof renderWalletActivity === "function") renderWalletActivity();
           syncLatestDepositRecord(currentUser.depositStatus);
           startCurrentUserRefresh();
           pullAccountDataFromServer(currentUser.username || localStorage.getItem("username") || "");
@@ -16139,6 +16153,8 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           currentUser = user;
           balanceIsAuthoritative = true;
           saveAuthLocalFields(response, user);
+          renderRecentTransactions();
+          if (typeof renderWalletActivity === "function") renderWalletActivity();
           recordCurrentDeviceLogin(true);
           syncDeviceHistoryWithServer();
           saveCachedUser(currentUser);
@@ -16757,10 +16773,30 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       };
 
       const walletActivityGetAll = () => {
+        const activeUsername = String(currentUser?.username || "").trim().toLowerCase();
+        let activeOwner = "";
+        try { activeOwner = String(localStorage.getItem("fxmt-local-account-owner-v1") || "").trim().toLowerCase(); } catch (error) {}
+        // Never render shared browser history before a signed-in account owns the active cache.
+        if (!activeUsername || !activeOwner || activeUsername !== activeOwner) return [];
+        const allowedIds = new Set([
+          currentUser?.id, currentUser?.serverId, currentUser?.uid
+        ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean));
+        try {
+          [localStorage.getItem("uid"), localStorage.getItem("userId")]
+            .forEach((value) => { if (value) allowedIds.add(String(value).trim().toLowerCase()); });
+        } catch (error) {}
+        const belongsToActiveAccount = (record) => {
+          const recordOwner = String(record?.accountOwner || record?.ownerUsername || "").trim().toLowerCase();
+          if (recordOwner && recordOwner !== activeUsername) return false;
+          const recordUsername = String(record?.username || "").trim().toLowerCase();
+          if (recordUsername && recordUsername !== activeUsername) return false;
+          const recordId = String(record?.userId ?? record?.uid ?? record?.ownerUserId ?? record?.accountUserId ?? "").trim().toLowerCase();
+          return !recordId || !allowedIds.size || allowedIds.has(recordId);
+        };
         const saved = walletActivityReadStorage();
         const deviceRecords = [...walletActivityFromRequests(), ...saved, ...walletActivitySeed]
-          .filter((record) => record?.type !== "transfer");
-        const combined = [...walletActivityRemoteTransfers, ...deviceRecords];
+          .filter((record) => record?.type !== "transfer" && belongsToActiveAccount(record));
+        const combined = [...walletActivityRemoteTransfers.filter(belongsToActiveAccount), ...deviceRecords];
         const unique = new Map();
         combined.forEach((record) => {
           if (record && record.id && !unique.has(record.id)) unique.set(record.id, record);
@@ -16772,8 +16808,14 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         // لا تحفظ التحويلات في الجهاز؛ سجلها المرجعي موجود في Google Sheets.
         if (record?.type === "transfer") return;
         try {
-          const items = walletActivityReadStorage().filter((item) => item.id !== record.id);
-          items.unshift(record);
+          const ownedRecord = {
+            ...record,
+            userId: record.userId || currentUser?.id || currentUser?.serverId || currentUser?.uid || "",
+            username: record.username || currentUser?.username || "",
+            accountOwner: record.accountOwner || currentUser?.username || ""
+          };
+          const items = walletActivityReadStorage().filter((item) => item.id !== ownedRecord.id);
+          items.unshift(ownedRecord);
           localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, JSON.stringify(items.slice(0, 300)));
         } catch (error) {}
       };
@@ -19308,6 +19350,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           if (syncEpoch !== accountLocalDataEpoch ||
             requestedUsername !== accountLocalOwnerName() ||
             requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
+          if (!responseAccountMatches(response, requestedUsername)) {
+            if (requireFresh) throw new Error("أعاد الخادم سجل تحويلات لحساب مختلف؛ لم يتم عرضها.");
+            return false;
+          }
           if (!response || response.ok === false) {
             if (requireFresh) throw new Error(response?.message || "تعذر تحديث التحويلات من الخادم.");
             return false;
@@ -19346,6 +19392,9 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             return {
               id: requestId,
               requestReference: requestId,
+              userId: currentUser?.id || currentUser?.serverId || currentUser?.uid || "",
+              username: String(currentUser?.username || username),
+              accountOwner: requestedUsername,
               type: "transfer",
               title: "تحويل داخلي",
               asset: "USDT",
@@ -19384,13 +19433,16 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         if (!username) return false;
         const historyEpoch = accountLocalDataEpoch;
         const requestedUsername = String(username).trim().toLowerCase();
+        if (requestedUsername !== accountLocalOwnerName() ||
+            requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
         if (fxHistorySyncing) {
           if (!requireFresh) return false;
           const waitStartedAt = Date.now();
           while (fxHistorySyncing && Date.now() - waitStartedAt < 30000) {
             await new Promise((resolve) => window.setTimeout(resolve, 100));
           }
-          if (historyEpoch !== accountLocalDataEpoch || requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
+          if (historyEpoch !== accountLocalDataEpoch || requestedUsername !== accountLocalOwnerName() ||
+              requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
           if (fxHistorySyncing) throw new Error("ما زال تحديث سجل العمليات السابق قيد التنفيذ.");
         }
         fxHistorySyncing = true;
@@ -19399,7 +19451,12 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             apiGet({ action: "getDeposits", username }),
             apiGet({ action: "getWithdrawals", username })
           ]);
-          if (historyEpoch !== accountLocalDataEpoch || requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
+          if (historyEpoch !== accountLocalDataEpoch || requestedUsername !== accountLocalOwnerName() ||
+              requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
+          if (!responseAccountMatches(dep, requestedUsername) || !responseAccountMatches(wd, requestedUsername)) {
+            if (requireFresh) throw new Error("أعاد الخادم سجل عمليات لحساب مختلف؛ لم يتم عرضها.");
+            return false;
+          }
           if (requireFresh && (!dep || dep.ok === false || !wd || wd.ok === false)) {
             throw new Error(dep?.message || wd?.message || "تعذر جلب سجل الإيداع والسحب من الخادم.");
           }
@@ -19429,6 +19486,8 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
               id: ref || `srv-${type}-${createdAt}-${amount}-${i}`,
               requestReference: ref || undefined,
               userId: uid, type, title, amount, asset: w.asset || w.currency || "USDT",
+              username: String(currentUser?.username || username),
+              accountOwner: requestedUsername,
               network: w.network || "", networkName: w.networkName || w.network || "",
               transactionId: w.txid || w.transactionId || "", address: w.address || w.wallet || "",
               status: statusOf(w), createdAt, fromServer: true
@@ -19436,8 +19495,18 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           });
           add(rowsOf(dep, "deposits"), "deposit", "إيداع USDT");
           add(rowsOf(wd, "withdrawals"), "withdraw", "سحب USDT");
-          if (!remote.length) return true;
-          const local = walletActivityReadStorage();
+          const scopedLocal = accountSyncFilterOwnedEntries(JSON.stringify(walletActivityReadStorage()));
+          const local = JSON.parse(scopedLocal.raw || "[]");
+          if (scopedLocal.removedForeign) {
+            localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, JSON.stringify(local));
+          }
+          if (!remote.length) {
+            if (scopedLocal.removedForeign) {
+              renderRecentTransactions();
+              if (typeof renderWalletActivity === "function") renderWalletActivity();
+            }
+            return true;
+          }
           const sameRecord = (a, b) => a.type === b.type && (
             (b.requestReference && (String(a.id) === b.requestReference || String(a.requestReference || "") === b.requestReference)) ||
             String(a.id) === String(b.id) ||
@@ -19477,7 +19546,8 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
       const ACCOUNT_USER_SCOPED_LIST_KEYS = new Set([
         "fxmt-wallet-activity-v1",
         "fxmt-deposit-requests",
-        "fxmt-withdraw-requests"
+        "fxmt-withdraw-requests",
+        "fxmt-sync-log-v1"
       ]);
       const ACCOUNT_SYNC_TS_KEY = "fxmt-account-sync-ts";
       const ACCOUNT_LOCAL_OWNER_KEY = "fxmt-local-account-owner-v1";
@@ -19507,6 +19577,41 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         } catch (e) {}
         return [...new Set(keys)];
       }
+      function accountStampLegacyEntries(raw, username) {
+        try {
+          const rows = JSON.parse(raw || "[]");
+          if (!Array.isArray(rows)) return raw;
+          const owner = String(username || "").trim().toLowerCase();
+          if (!owner) return raw;
+          return JSON.stringify(rows.map((entry) => {
+            if (!entry || typeof entry !== "object" || Array.isArray(entry)) return entry;
+            const knownOwner = String(entry.accountOwner || entry.ownerUsername || "").trim().toLowerCase();
+            return knownOwner ? entry : { ...entry, accountOwner: owner };
+          }));
+        } catch (e) {
+          return raw;
+        }
+      }
+      function accountStampLocalData(username) {
+        ACCOUNT_USER_SCOPED_LIST_KEYS.forEach((key) => {
+          try {
+            const raw = localStorage.getItem(key);
+            if (raw === null) return;
+            const stamped = accountStampLegacyEntries(raw, username);
+            if (stamped !== raw) {
+              localStorage.setItem(key, stamped);
+              localStorage.setItem(accountLocalCacheKey(username, key), stamped);
+            }
+          } catch (e) {}
+        });
+      }
+      function resetAccountRefreshThrottle() {
+        try {
+          syncBalanceFromServer._lastPull = 0;
+          syncBalanceFromServer._lastHistoryPull = 0;
+          syncBalanceFromServer._lastTransferPull = 0;
+        } catch (e) {}
+      }
       function activateLocalAccountData(username) {
         const target = String(username || "").trim();
         if (!target) return false;
@@ -19528,11 +19633,19 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             walletActivityRemoteTransfers = [];
             try { fxHistorySyncing = false; } catch (e) {}
             localStorage.setItem(ACCOUNT_LOCAL_OWNER_KEY, target);
+            accountStampLocalData(target);
+            resetAccountRefreshThrottle();
+            try { renderRecentTransactions(); } catch (e) {}
+            try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (e) {}
             return true;
           }
 
           const owner = savedOwner.toLowerCase();
-          if (owner === targetNormalized) return false;
+          if (owner === targetNormalized) {
+            accountStampLocalData(target);
+            resetAccountRefreshThrottle();
+            return false;
+          }
 
           accountLocalDataEpoch++;
           accountPullRequestId++;
@@ -19543,7 +19656,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
 
           // Preserve each account's local cache separately before changing users.
           accountLocalLiveKeys().forEach((key) => {
-            const value = localStorage.getItem(key);
+            let value = localStorage.getItem(key);
+            if (value !== null && ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
+              value = accountStampLegacyEntries(value, owner);
+            }
             if (value !== null) localStorage.setItem(accountLocalCacheKey(owner, key), value);
             localStorage.removeItem(key);
           });
@@ -19572,6 +19688,10 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           });
           walletActivityRemoteTransfers = [];
           localStorage.setItem(ACCOUNT_LOCAL_OWNER_KEY, target);
+          accountStampLocalData(target);
+          resetAccountRefreshThrottle();
+          try { renderRecentTransactions(); } catch (e) {}
+          try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (e) {}
           return true;
         } catch (e) {
           console.error("Account-local data switch failed:", e);
@@ -19596,11 +19716,19 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
         try { entries = JSON.parse(raw || "[]"); } catch (e) { return { raw, removedForeign: false }; }
         if (!Array.isArray(entries)) return { raw, removedForeign: false };
         const allowedIds = accountSyncAllowedUserIds();
-        if (!allowedIds.size) return { raw, removedForeign: false };
+        const activeUsername = String(currentUser?.username || localStorage.getItem("username") || "").trim().toLowerCase();
         let removedForeign = false;
         const filtered = entries.filter((entry) => {
-          const ownerId = entry?.userId ?? entry?.uid ?? entry?.ownerUserId ?? entry?.accountUserId;
+          const ownerName = String(entry?.accountOwner || entry?.ownerUsername || "").trim().toLowerCase();
+          const rowUsername = String(entry?.username || "").trim().toLowerCase();
+          if ((ownerName && activeUsername && ownerName !== activeUsername) ||
+              (rowUsername && activeUsername && rowUsername !== activeUsername)) {
+            removedForeign = true;
+            return false;
+          }
+          const ownerId = entry?.userId ?? entry?.uid ?? entry?.ownerUserId ?? entry?.accountUserId ?? entry?.accountId;
           if (ownerId === undefined || ownerId === null || String(ownerId).trim() === "") return true;
+          if (!allowedIds.size) return true;
           const belongsToCurrentUser = allowedIds.has(String(ownerId).trim().toLowerCase());
           if (!belongsToCurrentUser) removedForeign = true;
           return belongsToCurrentUser;
@@ -19616,13 +19744,16 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
             const raw = localStorage.getItem(key);
             if (raw !== null && raw !== undefined) {
               if (key === WALLET_ACTIVITY_STORAGE_KEY) {
+                const stampedRaw = ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)
+                  ? accountStampLegacyEntries(raw, fxUser())
+                  : raw;
                 const scopedRaw = ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)
-                  ? accountSyncFilterOwnedEntries(raw).raw
+                  ? accountSyncFilterOwnedEntries(stampedRaw).raw
                   : raw;
                 const entries = JSON.parse(scopedRaw);
                 data[key] = JSON.stringify(Array.isArray(entries) ? entries.filter((item) => item?.type !== "transfer") : []);
               } else if (ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
-                data[key] = accountSyncFilterOwnedEntries(raw).raw;
+                data[key] = accountSyncFilterOwnedEntries(accountStampLegacyEntries(raw, fxUser())).raw;
               } else {
                 data[key] = raw;
               }
@@ -19703,6 +19834,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
               if (merged && merged !== localRaw) { localStorage.setItem(key, merged); changed = true; }
             } else {
               if (ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
+                remoteRaw = accountStampLegacyEntries(remoteRaw, accountLocalOwnerName());
                 const filteredRemote = accountSyncFilterOwnedEntries(remoteRaw);
                 remoteRaw = filteredRemote.raw;
                 if (filteredRemote.removedForeign) removedForeignRecords = true;
@@ -19754,6 +19886,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
           const res = await apiGet({ action: "getUserData", username });
           if (requestId !== accountPullRequestId || requestEpoch !== accountLocalDataEpoch ||
             requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return;
+          if (!responseAccountMatches(res, requestedUsername)) return;
           if (!res || res.ok === false) return;
           const d = responseData(res) || {};
           const data = d.data || res.data || d.payload || res.payload;
