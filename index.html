@@ -28325,5 +28325,77 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     }
   }
 </style>
+<style id="fxmt-mobile-auth-viewport-stability">
+  /* Keep the registration screen and its neon artwork stable while the page scrolls. */
+  @media (max-width: 767px) {
+    html, body {
+      min-height: 100%;
+      overscroll-behavior-y: none;
+    }
+    body {
+      overflow: hidden;
+      background: #080511;
+    }
+    main.app-shell {
+      height: 100vh !important;
+      height: 100svh !important;
+      min-height: 100svh !important;
+    }
+    #welcomeScreen.auth-mode {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100vh !important;
+      height: 100svh !important;
+      min-height: 0 !important;
+      max-height: 100svh !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior-y: contain !important;
+      overflow-anchor: none !important;
+      scroll-behavior: auto !important;
+      touch-action: pan-y !important;
+      z-index: 2147482000 !important;
+    }
+    #welcomeScreen.auth-mode::before,
+    #welcomeScreen.auth-mode::after {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      height: 100svh !important;
+      transform: none !important;
+      animation: none !important;
+      transition: none !important;
+      filter: none !important;
+      will-change: auto !important;
+      pointer-events: none !important;
+    }
+    #welcomeScreen.auth-mode::before,
+    #welcomeScreen.auth-mode::after { z-index: 0 !important; }
+    #welcomeScreen.auth-mode .welcome-panel {
+      position: relative !important;
+      z-index: 1 !important;
+    }
+    /* Never expose the home screen underneath the sign-up overlay during a mobile repaint. */
+    main.app-shell:has(#welcomeScreen:not(.is-hidden)) > .scroll-area {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    main.app-shell:has(#welcomeScreen:not(.is-hidden)) .bottom-nav {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #welcomeScreen.auth-mode::before,
+    #welcomeScreen.auth-mode::after {
+      animation: none !important;
+      transform: none !important;
+      transition: none !important;
+    }
+  }
+</style>
 </body>
 </html>
