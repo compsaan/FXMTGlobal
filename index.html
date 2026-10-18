@@ -20181,7 +20181,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       function renderActiveDevices(){
         loadDeviceExtras();
         const copy=dc(),deviceState=readActiveDevices(),items=deviceState.items,hasOtherActive=deviceState.activeOthers.length>0;
-        const formatDeviceDate=value=>{const date=new Date(value||Date.now());return Number.isNaN(date.getTime())?copy.ipUnavailable:date.toLocaleString(currentLanguage==="ar"?"ar-SA":"en-US")};
+        const formatDeviceDate=value=>{const date=new Date(value||Date.now()),locale=currentLanguage==="ar"?"en-US":currentLanguage;return Number.isNaN(date.getTime())?copy.ipUnavailable:date.toLocaleString(locale,{numberingSystem:"latn"})};
         document.getElementById("devicesTitle").textContent=copy.title;
         document.getElementById("devicesListTitle").textContent=copy.listTitle;
         document.getElementById("devicesUpdatedAt").textContent=copy.updated;
@@ -20199,21 +20199,21 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           <article class="device-card ${item.current?"current":"history"}">
             <div class="device-card-main">
               <span class="device-type-icon"><i class="fa-solid ${deviceIcon(item.type)}" aria-hidden="true"></i></span>
-              <div><strong class="device-name">${walletActivityEscape(item.name||`${item.browser} · ${item.os}`)}</strong><span class="device-subtitle">${walletActivityEscape(item.browser||"")} · ${walletActivityEscape(item.os||"")}</span></div>
+              <div><strong class="device-name" data-no-translate>${walletActivityEscape(item.name||`${item.browser} · ${item.os}`)}</strong><span class="device-subtitle" data-no-translate>${walletActivityEscape(item.browser||"")} · ${walletActivityEscape(item.os||"")}</span></div>
               ${item.current
                 ? `<span class="device-current-badge"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>${copy.current}</span>`
                 : `<span class="device-history-badge"><i class="fa-solid ${item.archivedAt||item.signedOutAt?"fa-box-archive":item.online?"fa-circle-check":item.activeSession?"fa-clock":"fa-clock-rotate-left"}" aria-hidden="true"></i>${item.archivedAt||item.signedOutAt?copy.archivedLabel:item.online?copy.onlineLabel:item.activeSession?copy.activeLabel:copy.historyLabel}</span>`}
             </div>
             <div class="device-details">
               <div class="device-detail"><span>${copy.location}</span><strong><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${walletActivityEscape(locationText(item,copy))}</strong></div>
-              <div class="device-detail"><span>${copy.firstLogin}</span><strong>${formatDeviceDate(item.firstSeenAt||item.lastActive)}</strong></div>
-              <div class="device-detail"><span>${copy.lastActive}</span><strong>${item.current||item.online?copy.activeNow:formatDeviceDate(item.lastActive||item.firstSeenAt)}</strong></div>
-              <div class="device-detail"><span>${copy.deviceName}</span><strong>${walletActivityEscape(item.model||item.name||"-")}</strong></div>
+              <div class="device-detail"><span>${copy.firstLogin}</span><strong><span data-no-translate>${formatDeviceDate(item.firstSeenAt||item.lastActive)}</span></strong></div>
+              <div class="device-detail"><span>${copy.lastActive}</span><strong>${item.current||item.online?copy.activeNow:`<span data-no-translate>${formatDeviceDate(item.lastActive||item.firstSeenAt)}</span>`}</strong></div>
+              <div class="device-detail"><span>${copy.deviceName}</span><strong data-no-translate>${walletActivityEscape(item.model||item.name||"-")}</strong></div>
               <div class="device-detail"><span>${copy.deviceType}</span><strong><i class="fa-solid ${deviceIcon(item.type)}" aria-hidden="true"></i> ${deviceTypeLabel(item.type,copy)}</strong></div>
               <div class="device-detail"><span>${copy.deviceId}</span><strong dir="ltr">${walletActivityEscape(item.deviceId||item.id||"-")}</strong></div>
               <div class="device-detail"><span>${copy.sessionIp}</span><strong dir="ltr">${item.current?(sessionIp?walletActivityEscape(sessionIp):sessionIpState==="error"?copy.ipUnavailable:copy.ipLoading):walletActivityEscape(item.ip||copy.ipUnavailable)}</strong></div>
               <div class="device-detail"><span>${copy.session}</span><strong><i class="fa-solid fa-lock" aria-hidden="true"></i> ${copy.secure}</strong></div>
-              ${item.signedOutAt?`<div class="device-detail"><span>${copy.archivedAt}</span><strong>${formatDeviceDate(item.signedOutAt)}</strong></div>`:""}
+              ${item.signedOutAt?`<div class="device-detail"><span>${copy.archivedAt}</span><strong><span data-no-translate>${formatDeviceDate(item.signedOutAt)}</span></strong></div>`:""}
             </div>
           </article>`).join("");
       }
