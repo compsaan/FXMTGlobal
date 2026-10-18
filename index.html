@@ -16303,6 +16303,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         balanceIsAuthoritative = false;
         balanceSyncError = false;
         currentSessionToken = "";
+        deviceHistoryServerKey = "";
         currentUser = null;
         try {
           localStorage.removeItem(authSessionStorageKey);
@@ -20095,12 +20096,13 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       const devicesHistoryStorageKey = "fxmt-device-history-v1";
       let devicesLastFocus = null;
       const deviceCopy = {
-        ar:{title:"الأجهزة النشطة",listTitle:"سجل الأجهزة",updated:"تم التحديث الآن",current:"هذا الجهاز",activeLabel:"نشط",historyLabel:"محفوظ في السجل",archivedLabel:"مؤرشف",archivedAt:"تاريخ الأرشفة",activeNow:"نشط الآن",location:"الدولة / الموقع",locationValue:"موقع تقريبي محمي",firstLogin:"أول ظهور في السجل",lastActive:"آخر نشاط",session:"الجلسة",secure:"مشفّرة وآمنة",deviceName:"اسم الجهاز",deviceType:"نوع الجهاز",deviceId:"معرّف الجهاز",sessionIp:"IP الجلسة",ipLoading:"جارٍ التحقق…",ipUnavailable:"غير متاح",typeMobile:"هاتف محمول",typeTablet:"جهاز لوحي",typeDesktop:"كمبيوتر",archive:"أرشفة الأجهزة الأخرى",none:"لا توجد أجهزة نشطة أخرى • السجل محفوظ في حسابك",note:"يُحفظ سجل الأجهزة في حسابك ويتزامن بين أجهزتك. الأرشفة تحفظ السجل فقط ولا تُسجّل خروج الأجهزة الأخرى.",confirmTitle:"أرشفة الأجهزة الأخرى؟",confirmText:"ستُحفظ تفاصيل الأجهزة الأخرى في سجل حسابك. الأرشفة لا تُنهي جلساتها.",confirm:"أرشفة الأجهزة",cancel:"إلغاء",done:"تمت أرشفة الأجهزة مع حفظ تفاصيلها في الحساب",refreshed:"تم تحديث قائمة الأجهزة"},
-        en:{title:"Active devices",listTitle:"Device history",updated:"Updated now",current:"This device",activeLabel:"Active",historyLabel:"Saved in history",archivedLabel:"Archived",archivedAt:"Archived on",activeNow:"Active now",location:"Country / Location",locationValue:"Approximate location protected",firstLogin:"First recorded",lastActive:"Last activity",session:"Session",secure:"Encrypted and secure",deviceName:"Device name",deviceType:"Device type",deviceId:"Device ID",sessionIp:"Session IP",ipLoading:"Checking…",ipUnavailable:"Unavailable",typeMobile:"Mobile phone",typeTablet:"Tablet",typeDesktop:"Computer",archive:"Archive other devices",none:"No other active devices • history is saved to your account",note:"Device history is saved to your account and syncs across your devices. Archiving preserves the record; it does not sign out other devices.",confirmTitle:"Archive other devices?",confirmText:"Other device details will be saved in your account history. Archiving does not end their sessions.",confirm:"Archive devices",cancel:"Cancel",done:"Devices archived with details saved to your account",refreshed:"Device list updated"}
+        ar:{title:"الأجهزة والجلسات",listTitle:"سجل الأجهزة",updated:"تم التحديث الآن",current:"هذا الجهاز",onlineLabel:"متصل الآن",activeLabel:"جلسة دخول صالحة",historyLabel:"محفوظ في السجل",archivedLabel:"مؤرشف / تم تسجيل الخروج",archivedAt:"تاريخ الأرشفة",activeNow:"نشط الآن",location:"الدولة / الموقع",locationValue:"موقع تقريبي محمي",firstLogin:"أول ظهور في السجل",lastActive:"آخر نشاط",session:"الجلسة",secure:"مشفّرة وآمنة",deviceName:"اسم الجهاز",deviceType:"نوع الجهاز",deviceId:"معرّف الجهاز",sessionIp:"IP الجلسة",ipLoading:"جارٍ التحقق…",ipUnavailable:"غير متاح",typeMobile:"هاتف محمول",typeTablet:"جهاز لوحي",typeDesktop:"كمبيوتر",signOutOthers:"تسجيل الخروج من الأجهزة الأخرى",none:"لا توجد جلسات دخول أخرى • السجل محفوظ في حسابك",note:"تُعرض الأجهزة المحفوظة في حسابك فقط. «متصل الآن» تعني وجود نشاط موثّق خلال آخر 7 دقائق؛ وقد تبقى جلسة الدخول صالحة حتى تسجيل الخروج أو انتهاء صلاحيتها.",confirmTitle:"تسجيل الخروج من الأجهزة الأخرى؟",confirmText:"ستنتهي جلسات الدخول على الأجهزة الأخرى، مع الاحتفاظ بسجلها في حسابك.",confirm:"تسجيل الخروج من الأجهزة",cancel:"إلغاء",done:"تم تسجيل الخروج من الأجهزة الأخرى وحُفظ سجلها",refreshed:"تم تحديث قائمة الأجهزة"},
+        en:{title:"Devices & sessions",listTitle:"Device history",updated:"Updated now",current:"This device",onlineLabel:"Online now",activeLabel:"Valid sign-in session",historyLabel:"Saved in history",archivedLabel:"Signed out / archived",archivedAt:"Archived on",activeNow:"Active now",location:"Country / Location",locationValue:"Approximate location protected",firstLogin:"First recorded",lastActive:"Last activity",session:"Session",secure:"Encrypted and secure",deviceName:"Device name",deviceType:"Device type",deviceId:"Device ID",sessionIp:"Session IP",ipLoading:"Checking…",ipUnavailable:"Unavailable",typeMobile:"Mobile phone",typeTablet:"Tablet",typeDesktop:"Computer",signOutOthers:"Sign out other devices",none:"No other sign-in sessions • history is saved to your account",note:"Only devices saved to your account are shown. “Online now” means authenticated activity within the last 7 minutes; a sign-in session may remain valid until signed out or expired.",confirmTitle:"Sign out other devices?",confirmText:"Other devices will be signed out, and their history will remain saved to your account.",confirm:"Sign out devices",cancel:"Cancel",done:"Other devices were signed out and their history was saved",refreshed:"Device list updated"}
       };
       const dc = () => deviceCopy[currentLanguage] || deviceCopy.en;
-      let sessionGeo=null,sessionIp=null,sessionIpState="idle",deviceModelHint="";
-      function getDeviceId(){try{let id=localStorage.getItem("fxmt-device-id");if(!id){const b=new Uint8Array(8);(crypto||window.msCrypto).getRandomValues(b);id="FX-"+Array.from(b,x=>x.toString(16).padStart(2,"0")).join("").toUpperCase().replace(/(.{4})(?=.)/g,"$1-");localStorage.setItem("fxmt-device-id",id)}return id}catch(e){return"FX-UNKNOWN"}}
+      let sessionGeo=null,sessionIp=null,sessionIpState="idle",deviceModelHint="",fallbackDeviceId="";
+      function createDeviceId(){try{const cryptoApi=window.crypto||window.msCrypto;if(cryptoApi&&cryptoApi.getRandomValues){const bytes=new Uint8Array(12);cryptoApi.getRandomValues(bytes);return"FX-"+Array.from(bytes,value=>value.toString(16).padStart(2,"0")).join("").toUpperCase().replace(/(.{4})(?=.)/g,"$1-")}}catch(e){}const seed=`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;return"FX-"+seed.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,24)}
+      function getDeviceId(){if(fallbackDeviceId)return fallbackDeviceId;try{const saved=localStorage.getItem("fxmt-device-id");if(saved&&saved!=="FX-UNKNOWN"){fallbackDeviceId=saved;return saved}}catch(e){}try{const saved=sessionStorage.getItem("fxmt-device-id");if(saved&&saved!=="FX-UNKNOWN"){fallbackDeviceId=saved;return saved}}catch(e){}const id=createDeviceId();fallbackDeviceId=id;try{localStorage.setItem("fxmt-device-id",id)}catch(e){try{sessionStorage.setItem("fxmt-device-id",id)}catch(e2){}}return id}
       function loadDeviceExtras(){
         try{if(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues&&!deviceModelHint){navigator.userAgentData.getHighEntropyValues(["model"]).then(v=>{if(v&&v.model){deviceModelHint=v.model;if(devicesLayer.classList.contains("is-open"))renderActiveDevices()}}).catch(()=>{})}}catch(e){}
         if(sessionIpState!=="idle")return;
@@ -20121,14 +20123,16 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
       function deviceTimestamp(value,fallback=Date.now()){if(typeof value==="number"&&Number.isFinite(value)&&value>0)return value;const parsed=Date.parse(String(value||""));return Number.isFinite(parsed)&&parsed>0?parsed:fallback}
       function buildCurrentDevicePayload(){const device=detectCurrentDevice(),geo=sessionGeo;return{deviceId:device.deviceId,name:device.name,model:device.model,type:device.type,os:device.os,browser:device.browser,location:geo?[countryName(geo),geo.city].filter(Boolean).join(" · "):"",ip:sessionIp||""}}
-      let deviceHistorySyncPromise=null;
-      function saveServerDeviceHistory(rows){const key=getDeviceHistoryKey(),saved=rows.map(item=>{const archivedAt=item.archivedAt||item.signedOutAt||"";return{...item,id:item.deviceId||item.id,deviceId:item.deviceId||item.id,firstSeenAt:deviceTimestamp(item.firstSeenAt),lastActive:deviceTimestamp(item.lastActive),archivedAt:archivedAt?deviceTimestamp(archivedAt):"",signedOutAt:archivedAt?deviceTimestamp(archivedAt):"",current:!!item.current,activeSession:!!item.activeSession}});writeDeviceRows(key,saved);writeDeviceRows(devicesStorageKey,[]);return saved}
+      let deviceHistorySyncPromise=null,deviceHistoryServerKey="";
+      function saveServerDeviceHistory(rows){const key=getDeviceHistoryKey(),saved=rows.map(item=>{const archivedAt=item.archivedAt||item.signedOutAt||"";return{...item,id:item.deviceId||item.id,deviceId:item.deviceId||item.id,firstSeenAt:deviceTimestamp(item.firstSeenAt),lastActive:deviceTimestamp(item.lastActive),archivedAt:archivedAt?deviceTimestamp(archivedAt):"",signedOutAt:archivedAt?deviceTimestamp(archivedAt):"",current:!!item.current,activeSession:!!item.activeSession,online:!!item.online}});writeDeviceRows(key,saved);writeDeviceRows(devicesStorageKey,[]);deviceHistoryServerKey=key;return saved}
       function syncDeviceHistoryWithServer(){
         if(!currentSessionToken||!currentUser)return Promise.resolve(false);
         if(deviceHistorySyncPromise)return deviceHistorySyncPromise;
-        const key=getDeviceHistoryKey(),currentDevice=buildCurrentDevicePayload();
-        const history=readDeviceRows(key).filter(item=>String(item.deviceId||item.id||"")!==currentDevice.deviceId).slice(-100);
-        deviceHistorySyncPromise=apiRequest({action:"syncDeviceHistory",device:currentDevice,devices:history}).then(response=>{
+        const accountKey=getDeviceHistoryKey(),sessionToken=currentSessionToken,currentDevice=buildCurrentDevicePayload();
+        // Only a successful server-side login can create a session. Do not
+        // upload local cache rows as if they were devices that signed in.
+        deviceHistorySyncPromise=apiRequest({action:"syncDeviceHistory",sessionToken,device:currentDevice,devices:[]}).then(response=>{
+          if(currentSessionToken!==sessionToken||getDeviceHistoryKey()!==accountKey)return false;
           if(!Array.isArray(response.devices))return false;
           saveServerDeviceHistory(response.devices);
           if(devicesLayer.classList.contains("is-open"))renderActiveDevices();
@@ -20143,16 +20147,18 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         return `${devicesHistoryStorageKey}:${encodeURIComponent(String(account).trim().toLowerCase()||"guest")}`;
       }
       function recordCurrentDeviceLogin(isNewLogin=false){
-        const current=detectCurrentDevice(),historyKey=getDeviceHistoryKey(),history=readDeviceRows(historyKey),legacy=readDeviceRows(devicesStorageKey),currentId=String(current.deviceId||current.id),now=Date.now(),byId=new Map();
+        const current=detectCurrentDevice(),historyKey=getDeviceHistoryKey(),history=readDeviceRows(historyKey),currentId=String(current.deviceId||current.id),now=Date.now(),byId=new Map();
         const addSaved=(row,source)=>{
           const id=String(row.deviceId||row.id||"").trim();if(!id||id===currentId)return;
           const prior=byId.get(id)||{};
           byId.set(id,{...prior,...row,id:row.id&&row.id!=="current"?row.id:id,deviceId:row.deviceId||id,current:false,status:source==="active"?"active":row.status||"history"});
         };
-        history.forEach(row=>addSaved(row,"history"));legacy.forEach(row=>addSaved(row,"active"));
+        // The legacy key was global to the browser, not scoped to an account.
+        // Never import it into a user's device list; it can contain another account's devices.
+        history.forEach(row=>addSaved(row,"history"));
         const previous=history.find(row=>String(row.deviceId||row.id||"")===currentId)||{};
         const previousArchive=isNewLogin?"":previous.archivedAt||previous.signedOutAt||"";
-        const currentRecord={...previous,...current,id:currentId,firstSeenAt:deviceTimestamp(previous.firstSeenAt||previous.lastActive,now),lastActive:isNewLogin||!previous.lastActive?now:deviceTimestamp(previous.lastActive,now),current:true,status:previousArchive?"archived":"active",activeSession:true,archivedAt:previousArchive,signedOutAt:previousArchive};
+        const currentRecord={...previous,...current,id:currentId,firstSeenAt:deviceTimestamp(previous.firstSeenAt||previous.lastActive,now),lastActive:isNewLogin||!previous.lastActive?now:deviceTimestamp(previous.lastActive,now),current:true,status:previousArchive?"archived":"active",activeSession:!!currentSessionToken,online:!!currentSessionToken,archivedAt:previousArchive,signedOutAt:previousArchive};
         const items=[currentRecord,...byId.values()];writeDeviceRows(historyKey,items);
         if(isNewLogin){
           const device=[current.os,current.browser].filter(Boolean).join(" · ")||current.name||t("accountNotificationThisDevice");
@@ -20166,14 +20172,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         return items;
       }
       function readActiveDevices(){
-        const items=recordCurrentDeviceLogin(false);
+        const accountKey=getDeviceHistoryKey(),serverConfirmed=deviceHistoryServerKey===accountKey;
+        const items=recordCurrentDeviceLogin(false).map(item=>item.current?item:serverConfirmed?{...item,online:!!item.online}:{...item,activeSession:false,online:false});
         const activeOthers=items.filter(item=>!item.current&&item.activeSession===true&&!item.archivedAt);
         return{items,activeOthers};
-      }
-      function archiveOtherDeviceRecords(){
-        const historyKey=getDeviceHistoryKey(),history=readDeviceRows(historyKey),archivedAt=Date.now();
-        writeDeviceRows(historyKey,history.map(item=>!item.current&&item.activeSession?{...item,status:"archived",archivedAt,signedOutAt:archivedAt}:item));
-        writeDeviceRows(devicesStorageKey,[]);
       }
       function deviceIcon(type){return type==="mobile"?"fa-mobile-screen-button":type==="tablet"?"fa-tablet-screen-button":"fa-laptop"}
       function renderActiveDevices(){
@@ -20183,7 +20185,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         document.getElementById("devicesTitle").textContent=copy.title;
         document.getElementById("devicesListTitle").textContent=copy.listTitle;
         document.getElementById("devicesUpdatedAt").textContent=copy.updated;
-        document.getElementById("devicesSignOutLabel").textContent=hasOtherActive?copy.archive:copy.none;
+        document.getElementById("devicesSignOutLabel").textContent=hasOtherActive?copy.signOutOthers:copy.none;
         document.getElementById("devicesNote").textContent=copy.note;
         document.getElementById("devicesConfirmTitle").textContent=copy.confirmTitle;
         document.getElementById("devicesConfirmText").textContent=copy.confirmText;
@@ -20192,7 +20194,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         devicesSignOutOthers.disabled=!hasOtherActive||!currentSessionToken;
         devicesSignOutOthers.classList.toggle("is-empty",!hasOtherActive);
         const actionIcon=devicesSignOutOthers.querySelector("i");
-        if(actionIcon)actionIcon.className=hasOtherActive?"fa-solid fa-box-archive":"fa-solid fa-clock-rotate-left";
+        if(actionIcon)actionIcon.className=hasOtherActive?"fa-solid fa-right-from-bracket":"fa-solid fa-clock-rotate-left";
         devicesList.innerHTML=items.map(item=>`
           <article class="device-card ${item.current?"current":"history"}">
             <div class="device-card-main">
@@ -20200,12 +20202,12 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               <div><strong class="device-name">${walletActivityEscape(item.name||`${item.browser} · ${item.os}`)}</strong><span class="device-subtitle">${walletActivityEscape(item.browser||"")} · ${walletActivityEscape(item.os||"")}</span></div>
               ${item.current
                 ? `<span class="device-current-badge"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>${copy.current}</span>`
-                : `<span class="device-history-badge"><i class="fa-solid ${item.archivedAt||item.signedOutAt?"fa-box-archive":item.activeSession?"fa-circle-check":"fa-clock-rotate-left"}" aria-hidden="true"></i>${item.archivedAt||item.signedOutAt?copy.archivedLabel:item.activeSession?copy.activeLabel:copy.historyLabel}</span>`}
+                : `<span class="device-history-badge"><i class="fa-solid ${item.archivedAt||item.signedOutAt?"fa-box-archive":item.online?"fa-circle-check":item.activeSession?"fa-clock":"fa-clock-rotate-left"}" aria-hidden="true"></i>${item.archivedAt||item.signedOutAt?copy.archivedLabel:item.online?copy.onlineLabel:item.activeSession?copy.activeLabel:copy.historyLabel}</span>`}
             </div>
             <div class="device-details">
               <div class="device-detail"><span>${copy.location}</span><strong><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${walletActivityEscape(locationText(item,copy))}</strong></div>
               <div class="device-detail"><span>${copy.firstLogin}</span><strong>${formatDeviceDate(item.firstSeenAt||item.lastActive)}</strong></div>
-              <div class="device-detail"><span>${copy.lastActive}</span><strong>${item.current?copy.activeNow:formatDeviceDate(item.lastActive||item.firstSeenAt)}</strong></div>
+              <div class="device-detail"><span>${copy.lastActive}</span><strong>${item.current||item.online?copy.activeNow:formatDeviceDate(item.lastActive||item.firstSeenAt)}</strong></div>
               <div class="device-detail"><span>${copy.deviceName}</span><strong>${walletActivityEscape(item.model||item.name||"-")}</strong></div>
               <div class="device-detail"><span>${copy.deviceType}</span><strong><i class="fa-solid ${deviceIcon(item.type)}" aria-hidden="true"></i> ${deviceTypeLabel(item.type,copy)}</strong></div>
               <div class="device-detail"><span>${copy.deviceId}</span><strong dir="ltr">${walletActivityEscape(item.deviceId||item.id||"-")}</strong></div>
@@ -20215,13 +20217,13 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             </div>
           </article>`).join("");
       }
-      function openActiveDevices(trigger){devicesLastFocus=trigger||document.activeElement;renderActiveDevices();if(sessionIpState!=="loading")syncDeviceHistoryWithServer();devicesLayer.classList.add("is-open");devicesLayer.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";pushMobileBackHistoryEntry();setTimeout(()=>devicesClose.focus(),40)}
+      function openActiveDevices(trigger){devicesLastFocus=trigger||document.activeElement;renderActiveDevices();syncDeviceHistoryWithServer();devicesLayer.classList.add("is-open");devicesLayer.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";pushMobileBackHistoryEntry();setTimeout(()=>devicesClose.focus(),40)}
       function closeActiveDevices(){if(!devicesLayer.classList.contains("is-open"))return;devicesLayer.classList.remove("is-open");devicesLayer.setAttribute("aria-hidden","true");devicesConfirm.classList.remove("is-open");devicesConfirm.setAttribute("aria-hidden","true");document.body.style.overflow="";syncMobileBackHistoryOnClose();devicesLastFocus?.focus?.()}
       devicesClose.addEventListener("click",closeActiveDevices);devicesLayer.addEventListener("click",e=>{if(e.target===devicesLayer)closeActiveDevices()});
       devicesRefresh.addEventListener("click",async()=>{devicesRefresh.classList.add("is-loading");renderActiveDevices();const synced=sessionIpState==="loading"?await new Promise(resolve=>{const started=Date.now();const timer=setInterval(()=>{if(sessionIpState!=="loading"||Date.now()-started>8000){clearInterval(timer);resolve(sessionIpState!=="loading"&&syncDeviceHistoryWithServer())}},150)}):await syncDeviceHistoryWithServer();devicesRefresh.classList.remove("is-loading");showToast(synced?dc().refreshed:(currentLanguage==="ar"?"تعذرت مزامنة السجل الآن.":"Device history could not sync right now."))});
       devicesSignOutOthers.addEventListener("click",()=>{if(devicesSignOutOthers.disabled)return;devicesConfirm.classList.add("is-open");devicesConfirm.setAttribute("aria-hidden","false");document.getElementById("devicesConfirmCancel").focus()});
       document.getElementById("devicesConfirmCancel").addEventListener("click",()=>{devicesConfirm.classList.remove("is-open");devicesConfirm.setAttribute("aria-hidden","true");devicesSignOutOthers.focus()});
-      document.getElementById("devicesConfirmSubmit").addEventListener("click",async()=>{const button=document.getElementById("devicesConfirmSubmit");button.disabled=true;try{const response=await apiRequest({action:"archiveOtherDevices"});if(!Array.isArray(response.devices))throw new Error("لم يُرجع الخادم سجل الأجهزة.");saveServerDeviceHistory(response.devices);devicesConfirm.classList.remove("is-open");devicesConfirm.setAttribute("aria-hidden","true");renderActiveDevices();showToast(dc().done)}catch(error){showToast(error.message||(currentLanguage==="ar"?"تعذرت أرشفة الأجهزة.":"Could not archive devices."))}finally{button.disabled=false}});
+      document.getElementById("devicesConfirmSubmit").addEventListener("click",async()=>{const button=document.getElementById("devicesConfirmSubmit");button.disabled=true;try{const response=await apiRequest({action:"signOutOtherDevices"});if(!Array.isArray(response.devices))throw new Error("لم يُرجع الخادم سجل الأجهزة.");saveServerDeviceHistory(response.devices);devicesConfirm.classList.remove("is-open");devicesConfirm.setAttribute("aria-hidden","true");renderActiveDevices();showToast(dc().done)}catch(error){showToast(error.message||(currentLanguage==="ar"?"تعذّر تسجيل الخروج من الأجهزة الأخرى.":"Could not sign out other devices."))}finally{button.disabled=false}});
       document.addEventListener("keydown",event=>{if(event.key!=="Escape")return;if(devicesConfirm.classList.contains("is-open")){devicesConfirm.classList.remove("is-open");devicesConfirm.setAttribute("aria-hidden","true");return}if(devicesLayer.classList.contains("is-open"))closeActiveDevices()});
 
       /* ===== إضافات: دوال مساعدة للـ API الجديد (لا تغيّر أي سلوك موجود) ===== */
@@ -28179,6 +28181,7 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
   var SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,NOSCRIPT:1,CODE:1,SVG:1,svg:1,path:1};
   var EXCL='#languageSelect,#accountLanguageSelect,[data-language-option],[data-account-language-option],#selectedLanguageName,#accountSelectedLanguageName,[data-no-translate],[contenteditable="true"]';
   var ATTRS=['placeholder','title','aria-label','alt','data-tooltip'];
+  var OBSERVED_ATTRS=ATTRS.concat(['class','aria-selected']);
   var cache={};
   function esc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
   function build(lang){
@@ -28189,6 +28192,12 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     return cache[lang]={m:m,re:re};
   }
   function lang(){var l=(document.documentElement.lang||'ar').toLowerCase().split('-')[0];return l;}
+  function selectionLanguage(el,L){
+    if(L!=='ar'||excluded(el))return L;
+    var selected=el&&el.closest?el.closest('.is-selected,[aria-selected="true"]'):null;
+    if(!selected&&el&&el.closest){var option=el.closest('option');if(option&&option.selected)selected=option;}
+    return selected&&!excluded(selected)?'en':L;
+  }
   function tr(s,L){
     if(!s||!/[A-Za-z\u0600-\u06FF]/.test(s))return s;
     var d=build(L);var t=s.trim();if(!t)return s;
@@ -28207,18 +28216,31 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     var p=n.parentNode;if(!p||SKIP[p.nodeName]||excluded(p))return;
     var cur=n.nodeValue;
     if(applied.get(n)!==cur){var source=p.getAttribute&&p.getAttribute('data-i18n-source');orig.set(n,source!==null&&source!==undefined?source:cur);}
-    var o=orig.get(n);var t=tr(o,L);
+    var o=orig.get(n);var t=tr(o,selectionLanguage(p,L));
     if(t!==cur){applied.set(n,t);n.nodeValue=t;}else applied.set(n,cur);
   }
   function doAttrs(el,L){
     if(excluded(el))return;
     if(el.getAttribute('dir')==='rtl')localeDirections.add(el);
     if(localeDirections.has(el))el.setAttribute('dir',L==='ar'?'rtl':'ltr');
+    var targetLanguage=selectionLanguage(el,L);
     var store=aorig.get(el);if(!store){store={};aorig.set(el,store);}
     for(var i=0;i<ATTRS.length;i++){var a=ATTRS[i];if(!el.hasAttribute(a))continue;var v=el.getAttribute(a);
       var rec=store[a];if(!rec||rec.applied!==v)rec=store[a]={o:v};
-      var t=tr(rec.o,L);rec.applied=t;if(t!==v)el.setAttribute(a,t);}
-    if(el.tagName==='INPUT'&&/^(button|submit|reset)$/i.test(el.type)){var v2=el.value;var r2=store.__v;if(!r2||r2.applied!==v2)r2=store.__v={o:v2};var t2=tr(r2.o,L);r2.applied=t2;if(t2!==v2)el.value=t2;}
+      var t=tr(rec.o,targetLanguage);rec.applied=t;if(t!==v)el.setAttribute(a,t);}
+    if(el.tagName==='INPUT'&&/^(button|submit|reset)$/i.test(el.type)){var v2=el.value;var r2=store.__v;if(!r2||r2.applied!==v2)r2=store.__v={o:v2};var t2=tr(r2.o,targetLanguage);r2.applied=t2;if(t2!==v2)el.value=t2;}
+  }
+  function selectionAttributeMutation(m,L){
+    var el=m.target,wasSelected=false,isSelected=false;
+    if(m.attributeName==='class'){
+      var pattern=/(?:^|\s)is-selected(?:\s|$)/;
+      wasSelected=pattern.test(m.oldValue||'');
+      isSelected=pattern.test(el.getAttribute('class')||'');
+    }else if(m.attributeName==='aria-selected'){
+      wasSelected=m.oldValue==='true';
+      isSelected=el.getAttribute('aria-selected')==='true';
+    }
+    if(wasSelected!==isSelected)walk(el,L);
   }
   function walk(root,L){
     if(!root)return;
@@ -28276,16 +28298,17 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
         var L=lang();
         ms.forEach(function(m){
           if(m.type==='characterData')doText(m.target,L);
-          else if(m.type==='attributes')doAttrs(m.target,L);
+          else if(m.type==='attributes')selectionAttributeMutation(m,L);
           else m.addedNodes.forEach(function(x){walk(x,L);});
         });
-      }).observe(d.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:ATTRS});
+      }).observe(d.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeOldValue:true,attributeFilter:OBSERVED_ATTRS});
     }catch(e){}
   }
   function hookFrame(f){if(f.__fxI18n)return;f.__fxI18n=1;frames.push(f);f.addEventListener('load',function(){bindFrame(f);});bindFrame(f);}
   function start(){
     run();
-    new MutationObserver(function(ms){if(busy)return;var L=lang();busy=true;try{ms.forEach(function(m){if(m.type==='characterData')doText(m.target,L);else if(m.type==='attributes')doAttrs(m.target,L);else m.addedNodes.forEach(function(x){walk(x,L);});});}finally{busy=false;}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:ATTRS});
+    document.addEventListener('change',function(event){var target=event.target;if(target&&target.tagName==='SELECT')walk(target,lang());},true);
+     new MutationObserver(function(ms){if(busy)return;var L=lang();busy=true;try{ms.forEach(function(m){if(m.type==='characterData')doText(m.target,L);else if(m.type==='attributes')selectionAttributeMutation(m,L);else m.addedNodes.forEach(function(x){walk(x,L);});});}finally{busy=false;}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeOldValue:true,attributeFilter:OBSERVED_ATTRS});
     new MutationObserver(function(){run();}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
     new MutationObserver(function(){var L=lang();var t=tr(document.title,L);if(t!==document.title)document.title=t;}).observe(document.querySelector('title')||document.head,{childList:true,characterData:true,subtree:true});
   }
