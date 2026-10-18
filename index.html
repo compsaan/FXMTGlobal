@@ -10196,6 +10196,7 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
   .account-notification-icon.login { color: #8ce5c1; }
   .account-notification-icon.setting { color: #d1a8ff; }
   .account-notification-icon.security { color: #ffb6a1; }
+  .account-notification-icon.referral { color: #ffe18a; }
   .account-notification-copy { display: grid; min-width: 0; gap: 4px; }
   .account-notification-title {
     overflow: hidden;
@@ -12637,11 +12638,13 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         accountNotificationsMarkRead: "Mark all read",
         accountNotificationsSignIn: "Sign in to view account activity.",
         accountNotificationsEmpty: "No account activity yet",
-        accountNotificationsEmptyHint: "Deposits, withdrawals, transfers, sign-ins, and account changes will appear here.",
+        accountNotificationsEmptyHint: "Deposits, withdrawals, transfers, referral rewards, sign-ins, and account changes will appear here.",
         accountNotificationsSummary: "{count} notifications · {unread} unread",
         accountNotificationDeposit: "Deposit",
         accountNotificationWithdraw: "Withdrawal",
         accountNotificationTransfer: "Transfer",
+        accountNotificationReferralTitle: "Referral reward received",
+        accountNotificationReferralDetail: "You earned {amount} USDT after {member}'s deposit.",
         accountNotificationLoginTitle: "New sign-in",
         accountNotificationLoginDetail: "Signed in from {device}.",
         accountNotificationSettingsTitle: "Account settings changed",
@@ -12964,11 +12967,13 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           accountNotificationsMarkRead: "قراءة الكل",
           accountNotificationsSignIn: "سجّل الدخول لعرض عمليات الحساب.",
           accountNotificationsEmpty: "لا توجد إشعارات حساب بعد",
-          accountNotificationsEmptyHint: "ستظهر هنا عمليات الإيداع والسحب والتحويل وتسجيلات الدخول وتغييرات الحساب.",
+          accountNotificationsEmptyHint: "ستظهر هنا عمليات الإيداع والسحب والتحويل ومكافآت الإحالة وتسجيلات الدخول وتغييرات الحساب.",
           accountNotificationsSummary: "التنبيهات: {count} · غير المقروء: {unread}",
           accountNotificationDeposit: "إيداع",
           accountNotificationWithdraw: "سحب",
           accountNotificationTransfer: "تحويل",
+          accountNotificationReferralTitle: "وصلتك مكافأة إحالة",
+          accountNotificationReferralDetail: "حصلت على مكافأة بقيمة {amount} USDT بعد إيداع {member}.",
           accountNotificationLoginTitle: "تسجيل دخول جديد",
           accountNotificationLoginDetail: "تم تسجيل الدخول من {device}.",
           accountNotificationSettingsTitle: "تغيير إعدادات الحساب",
@@ -17249,12 +17254,69 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             const saved = JSON.parse(localStorage.getItem(accountNotificationEventsKey(identity)) || "[]");
             if (Array.isArray(saved)) {
               saved.forEach((event) => {
-                if (event && event.id && ["login", "setting", "security"].includes(event.type)) events.push(event);
+                if (event && event.id && ["login", "setting", "security", "referral"].includes(event.type)) events.push(event);
               });
             }
           } catch (error) {}
         });
         return [...new Map(events.map((event) => [String(event.id), event])).values()];
+      };
+      const syncReferralRewardNotifications = async () => {
+        const username = String(currentUser?.username || "").trim();
+        const identity = username.toLowerCase();
+        const sessionToken = String(currentSessionToken || "");
+        if (!identity || !sessionToken) return;
+
+        try {
+          const response = await apiGet({ action: "getReferralNotifications", username });
+          if (!response || response.ok === false) return;
+          const data = responseData(response);
+          const rewards = Array.isArray(data.notifications) ? data.notifications : [];
+          if (
+            !currentUser?.username ||
+            String(currentUser.username).trim().toLowerCase() !== identity ||
+            currentSessionToken !== sessionToken
+          ) return;
+
+          const storageKey = accountNotificationEventsKey(identity);
+          let saved = [];
+          try {
+            const existing = JSON.parse(localStorage.getItem(storageKey) || "[]");
+            if (Array.isArray(existing)) saved = existing;
+          } catch (error) {}
+          const eventsById = new Map(saved.filter((event) => event?.id).map((event) => [String(event.id), event]));
+
+          rewards.forEach((reward) => {
+            const rewardId = String(reward?.id || "").trim();
+            const member = String(reward?.member || "").trim();
+            const amount = Number(reward?.reward);
+            const createdAt = new Date(reward?.createdAt || "");
+            if (!rewardId || !member || !Number.isFinite(amount) || amount <= 0 || Number.isNaN(createdAt.getTime())) return;
+
+            const id = `referral-${rewardId}`;
+            eventsById.set(id, {
+              id,
+              type: "referral",
+              titleKey: "accountNotificationReferralTitle",
+              detailKey: "accountNotificationReferralDetail",
+              detailVariables: {
+                member,
+                amount: new Intl.NumberFormat(currentLanguage || "ar", { maximumFractionDigits: 8 }).format(amount)
+              },
+              createdAt: createdAt.toISOString()
+            });
+          });
+
+          const events = [...eventsById.values()]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 50);
+          localStorage.setItem(storageKey, JSON.stringify(events));
+          if (
+            currentUser?.username &&
+            String(currentUser.username).trim().toLowerCase() === identity &&
+            currentSessionToken === sessionToken
+          ) renderAccountNotifications();
+        } catch (error) {}
       };
       const recordAccountNotificationEvent = (type, options = {}) => {
         const identity = String(options.identity || currentUser?.username || "").trim().toLowerCase();
@@ -17333,6 +17395,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           deposit: t("accountNotificationDeposit"),
           withdraw: t("accountNotificationWithdraw"),
           transfer: t("accountNotificationTransfer"),
+          referral: t("accountNotificationReferralTitle"),
           login: t("accountNotificationLoginTitle"),
           setting: t("accountNotificationSettingsTitle"),
           security: t("accountNotificationSecurityTitle")
@@ -17350,6 +17413,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             deposit: "fa-arrow-down",
             withdraw: "fa-arrow-up",
             transfer: "fa-arrow-right-arrow-left",
+            referral: "fa-gift",
             login: "fa-right-to-bracket",
             setting: "fa-sliders",
             security: "fa-shield-halved"
@@ -17393,6 +17457,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       notificationButton.addEventListener("click", () => {
         if (!notificationPopover.hidden) return;
         renderAccountNotifications();
+        syncReferralRewardNotifications();
         notificationPopover.hidden = false;
         notificationButton.setAttribute("aria-expanded", "true");
         notificationButton.classList.add("is-active");
@@ -17415,6 +17480,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }
       });
       window.setTimeout(renderAccountNotifications, 0);
+      window.setInterval(() => {
+        if (currentUser?.username) syncReferralRewardNotifications();
+      }, 30000);
 
       const balanceVisibilityButton = document.getElementById("balanceVisibilityButton");
       const totalBalance = document.getElementById("totalBalance");
