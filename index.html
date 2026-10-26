@@ -16831,9 +16831,245 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         ...document.querySelectorAll("#downloadAppButton, [data-account-action='download']"),
       ];
       const isAppInstalled = () =>
-        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
         window.navigator.standalone === true ||
         document.referrer.startsWith("android-app://");
+
+      const installGuideByLanguage = {
+        ar: {
+          title: "تثبيت FXMT على الهاتف",
+          intro: "هذا المتصفح لا يتيح نافذة التثبيت التلقائية. استخدم الخطوات المناسبة لجهازك:",
+          ios: "على iPhone أو iPad: اضغط «مشاركة» ثم «إضافة إلى الشاشة الرئيسية» ثم «إضافة».",
+          samsung: "في Samsung Internet: افتح القائمة ☰ ثم «إضافة الصفحة إلى» ثم «الشاشة الرئيسية».",
+          firefox: "في Firefox على Android: افتح القائمة ⋮ واختر «تثبيت» أو «إضافة إلى الشاشة الرئيسية».",
+          android: "على Android: افتح قائمة المتصفح ⋮ واختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».",
+          embedded: "يبدو أنك داخل متصفح مضمّن في تطبيق آخر. افتح قائمة الصفحة واختر «فتح في المتصفح» أولاً، ثم اتبع خطوات التثبيت.",
+          generic: "افتح قائمة المتصفح وابحث عن «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». قد يختلف اسم الخيار بين المتصفحات.",
+          secure: "التثبيت يتطلب فتح المنصة عبر HTTPS. افتح النسخة الرسمية الآمنة ثم أعد المحاولة.",
+          openSite: "فتح النسخة الآمنة",
+          close: "إغلاق",
+        },
+        en: {
+          title: "Install FXMT on your phone",
+          intro: "This browser does not provide an automatic install prompt. Use the steps for your device:",
+          ios: "On iPhone or iPad: tap Share, choose Add to Home Screen, then tap Add.",
+          samsung: "In Samsung Internet: open ☰, choose Add page to, then Home screen.",
+          firefox: "In Firefox on Android: open ⋮ and choose Install or Add to Home screen.",
+          android: "On Android: open the browser menu ⋮ and choose Install app or Add to Home screen.",
+          embedded: "You appear to be in an in-app browser. Open the page menu and choose Open in browser first, then follow the install steps.",
+          generic: "Open the browser menu and look for Install app or Add to Home screen. The option name varies by browser.",
+          secure: "Installation requires a secure HTTPS page. Open the official secure version, then try again.",
+          openSite: "Open secure version",
+          close: "Close",
+        },
+        fr: {
+          title: "Installer FXMT sur votre téléphone",
+          intro: "Ce navigateur ne propose pas de fenêtre d’installation automatique. Suivez les étapes adaptées :",
+          ios: "Sur iPhone ou iPad : touchez Partager, puis Sur l’écran d’accueil et Ajouter.",
+          samsung: "Dans Samsung Internet : ouvrez ☰, choisissez Ajouter la page à, puis Écran d’accueil.",
+          firefox: "Dans Firefox sur Android : ouvrez ⋮ et choisissez Installer ou Ajouter à l’écran d’accueil.",
+          android: "Sur Android : ouvrez le menu ⋮ et choisissez Installer l’application ou Ajouter à l’écran d’accueil.",
+          embedded: "Vous utilisez probablement un navigateur intégré à une autre application. Choisissez Ouvrir dans le navigateur, puis suivez les étapes.",
+          generic: "Ouvrez le menu du navigateur et recherchez Installer l’application ou Ajouter à l’écran d’accueil.",
+          secure: "L’installation nécessite une page HTTPS sécurisée. Ouvrez la version officielle sécurisée, puis réessayez.",
+          openSite: "Ouvrir la version sécurisée",
+          close: "Fermer",
+        },
+        es: {
+          title: "Instalar FXMT en tu teléfono",
+          intro: "Este navegador no ofrece una ventana de instalación automática. Sigue los pasos para tu dispositivo:",
+          ios: "En iPhone o iPad: toca Compartir, elige Añadir a pantalla de inicio y pulsa Añadir.",
+          samsung: "En Samsung Internet: abre ☰, elige Añadir página a y luego Pantalla de inicio.",
+          firefox: "En Firefox para Android: abre ⋮ y elige Instalar o Añadir a pantalla de inicio.",
+          android: "En Android: abre el menú ⋮ y elige Instalar aplicación o Añadir a pantalla de inicio.",
+          embedded: "Parece que estás en un navegador integrado. Elige Abrir en el navegador y luego sigue los pasos de instalación.",
+          generic: "Abre el menú del navegador y busca Instalar aplicación o Añadir a pantalla de inicio.",
+          secure: "La instalación requiere una página HTTPS segura. Abre la versión oficial segura y vuelve a intentarlo.",
+          openSite: "Abrir versión segura",
+          close: "Cerrar",
+        },
+        de: {
+          title: "FXMT auf dem Smartphone installieren",
+          intro: "Dieser Browser bietet keinen automatischen Installationsdialog. Nutze die passenden Schritte:",
+          ios: "Auf iPhone oder iPad: Tippe auf Teilen, Zum Home-Bildschirm und anschließend auf Hinzufügen.",
+          samsung: "In Samsung Internet: Öffne ☰, wähle Seite hinzufügen zu und dann Startbildschirm.",
+          firefox: "In Firefox für Android: Öffne ⋮ und wähle Installieren oder Zum Startbildschirm hinzufügen.",
+          android: "Unter Android: Öffne das Browsermenü ⋮ und wähle App installieren oder Zum Startbildschirm hinzufügen.",
+          embedded: "Du verwendest vermutlich einen In-App-Browser. Wähle zuerst In Browser öffnen und folge dann den Installationsschritten.",
+          generic: "Öffne das Browsermenü und suche nach App installieren oder Zum Startbildschirm hinzufügen.",
+          secure: "Für die Installation ist eine sichere HTTPS-Seite erforderlich. Öffne die offizielle sichere Version und versuche es erneut.",
+          openSite: "Sichere Version öffnen",
+          close: "Schließen",
+        },
+        tr: {
+          title: "FXMT’yi telefonunuza yükleyin",
+          intro: "Bu tarayıcı otomatik yükleme penceresi sunmuyor. Cihazınıza uygun adımları izleyin:",
+          ios: "iPhone veya iPad’de: Paylaş’a, Ana Ekrana Ekle’ye ve ardından Ekle’ye dokunun.",
+          samsung: "Samsung Internet’te: ☰ menüsünü açın, Sayfayı şuraya ekle’yi ve Ana ekran’ı seçin.",
+          firefox: "Android Firefox’ta: ⋮ menüsünü açın ve Yükle veya Ana ekrana ekle’yi seçin.",
+          android: "Android’de: tarayıcı menüsünü ⋮ açın ve Uygulamayı yükle veya Ana ekrana ekle’yi seçin.",
+          embedded: "Başka bir uygulamanın içindeki tarayıcıdasınız. Önce Tarayıcıda aç’ı seçin, ardından yükleme adımlarını izleyin.",
+          generic: "Tarayıcı menüsünü açıp Uygulamayı yükle veya Ana ekrana ekle seçeneğini arayın.",
+          secure: "Yükleme için güvenli HTTPS sayfası gerekir. Resmî güvenli sürümü açıp tekrar deneyin.",
+          openSite: "Güvenli sürümü aç",
+          close: "Kapat",
+        },
+        pt: {
+          title: "Instalar FXMT no seu telemóvel",
+          intro: "Este navegador não apresenta uma janela automática de instalação. Siga os passos do seu dispositivo:",
+          ios: "No iPhone ou iPad: toque em Partilhar, Adicionar ao ecrã principal e depois Adicionar.",
+          samsung: "No Samsung Internet: abra ☰, escolha Adicionar página a e depois Ecrã principal.",
+          firefox: "No Firefox para Android: abra ⋮ e escolha Instalar ou Adicionar ao ecrã principal.",
+          android: "No Android: abra o menu ⋮ e escolha Instalar aplicação ou Adicionar ao ecrã principal.",
+          embedded: "Parece estar num navegador integrado. Escolha Abrir no navegador e depois siga os passos de instalação.",
+          generic: "Abra o menu do navegador e procure Instalar aplicação ou Adicionar ao ecrã principal.",
+          secure: "A instalação requer uma página HTTPS segura. Abra a versão oficial segura e tente novamente.",
+          openSite: "Abrir versão segura",
+          close: "Fechar",
+        },
+        ru: {
+          title: "Установить FXMT на телефон",
+          intro: "Этот браузер не показывает автоматическое окно установки. Выполните подходящие шаги:",
+          ios: "На iPhone или iPad: нажмите «Поделиться», выберите «На экран Домой», затем «Добавить».",
+          samsung: "В Samsung Internet: откройте ☰, выберите «Добавить страницу» и затем «Главный экран».",
+          firefox: "В Firefox для Android: откройте ⋮ и выберите «Установить» или «Добавить на главный экран».",
+          android: "На Android: откройте меню браузера ⋮ и выберите «Установить приложение» или «Добавить на главный экран».",
+          embedded: "Похоже, открыт встроенный браузер приложения. Сначала выберите «Открыть в браузере», затем выполните шаги установки.",
+          generic: "Откройте меню браузера и найдите «Установить приложение» или «Добавить на главный экран».",
+          secure: "Для установки требуется защищённая страница HTTPS. Откройте официальную защищённую версию и повторите попытку.",
+          openSite: "Открыть защищённую версию",
+          close: "Закрыть",
+        },
+        zh: {
+          title: "在手机上安装 FXMT",
+          intro: "此浏览器不提供自动安装弹窗，请按设备类型操作：",
+          ios: "在 iPhone 或 iPad 上：点按“分享”，选择“添加到主屏幕”，然后点按“添加”。",
+          samsung: "在 Samsung Internet 中：打开 ☰，选择“添加页面至”，然后选择“主屏幕”。",
+          firefox: "在 Android 版 Firefox 中：打开 ⋮，选择“安装”或“添加到主屏幕”。",
+          android: "在 Android 上：打开浏览器菜单 ⋮，选择“安装应用”或“添加到主屏幕”。",
+          embedded: "您似乎正在使用应用内浏览器。请先选择“在浏览器中打开”，再按步骤安装。",
+          generic: "打开浏览器菜单，查找“安装应用”或“添加到主屏幕”。不同浏览器的选项名称可能不同。",
+          secure: "安装需要安全的 HTTPS 页面。请打开官方安全版本后重试。",
+          openSite: "打开安全版本",
+          close: "关闭",
+        },
+        ja: {
+          title: "FXMTをスマートフォンにインストール",
+          intro: "このブラウザーでは自動インストール画面が表示されません。端末に合った手順をお試しください。",
+          ios: "iPhoneまたはiPad：共有ボタンをタップし、「ホーム画面に追加」→「追加」を選びます。",
+          samsung: "Samsung Internet：☰を開き、「ページを追加」から「ホーム画面」を選びます。",
+          firefox: "Android版Firefox：⋮を開き、「インストール」または「ホーム画面に追加」を選びます。",
+          android: "Android：ブラウザーの⋮メニューから「アプリをインストール」または「ホーム画面に追加」を選びます。",
+          embedded: "アプリ内ブラウザーを使用中のようです。先に「ブラウザーで開く」を選び、その後インストールしてください。",
+          generic: "ブラウザーのメニューから「アプリをインストール」または「ホーム画面に追加」を探してください。",
+          secure: "インストールにはHTTPSの安全なページが必要です。公式の安全なページを開いて再試行してください。",
+          openSite: "安全なページを開く",
+          close: "閉じる",
+        },
+        hi: {
+          title: "अपने फ़ोन पर FXMT इंस्टॉल करें",
+          intro: "यह ब्राउज़र अपने-आप इंस्टॉल पॉप-अप नहीं दिखाता। अपने डिवाइस के लिए ये चरण अपनाएँ:",
+          ios: "iPhone या iPad पर: Share दबाएँ, Add to Home Screen चुनें, फिर Add दबाएँ।",
+          samsung: "Samsung Internet में: ☰ खोलें, Add page to चुनें, फिर Home screen चुनें।",
+          firefox: "Android Firefox में: ⋮ खोलें और Install या Add to Home screen चुनें।",
+          android: "Android पर: ब्राउज़र मेनू ⋮ खोलें और Install app या Add to Home screen चुनें।",
+          embedded: "आप किसी दूसरे ऐप के इन-ऐप ब्राउज़र में हैं। पहले Open in browser चुनें, फिर इंस्टॉल करें।",
+          generic: "ब्राउज़र मेनू खोलें और Install app या Add to Home screen खोजें।",
+          secure: "इंस्टॉल करने के लिए सुरक्षित HTTPS पेज ज़रूरी है। आधिकारिक सुरक्षित संस्करण खोलकर फिर कोशिश करें।",
+          openSite: "सुरक्षित संस्करण खोलें",
+          close: "बंद करें",
+        },
+      };
+      function showInstallHelp() {
+        if (document.getElementById("fxmtInstallGuide")) return;
+
+        const language = installGuideByLanguage[currentLanguage] || installGuideByLanguage.en;
+        const userAgent = navigator.userAgent || "";
+        const isIOS = /iPhone|iPad|iPod/i.test(userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        const isAndroid = /Android/i.test(userAgent);
+        const isEmbeddedBrowser = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|; wv\)/i.test(userAgent);
+        const isSamsungBrowser = /SamsungBrowser/i.test(userAgent);
+        const isFirefox = /Firefox|FxiOS/i.test(userAgent);
+        const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+        const isSecureInstallOrigin =
+          window.isSecureContext === true || location.protocol === "https:" || isLocalhost;
+        const instruction = isEmbeddedBrowser
+          ? language.embedded
+          : isIOS
+            ? language.ios
+            : isAndroid && isSamsungBrowser
+              ? language.samsung
+              : isAndroid && isFirefox
+                ? language.firefox
+                : isAndroid
+                  ? language.android
+                  : language.generic;
+
+        const overlay = document.createElement("div");
+        overlay.id = "fxmtInstallGuide";
+        overlay.className = "fxmt-install-guide-overlay";
+        overlay.setAttribute("dir", document.documentElement.dir || "rtl");
+        overlay.innerHTML = `
+          <style>
+            .fxmt-install-guide-overlay{position:fixed;inset:0;z-index:100700;display:flex;align-items:center;justify-content:center;padding:18px 14px calc(18px + env(safe-area-inset-bottom,0px));box-sizing:border-box;background:rgba(5,3,12,.78);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+            .fxmt-install-guide-card{width:min(100%,440px);max-height:calc(100vh - 36px);max-height:calc(100dvh - 36px);overflow:auto;box-sizing:border-box;padding:22px;border:1px solid rgba(223,151,255,.4);border-radius:24px;background:linear-gradient(150deg,rgba(41,20,59,.98),rgba(15,9,27,.99));color:#fff7ff;box-shadow:0 24px 70px rgba(0,0,0,.52),0 0 30px rgba(183,92,255,.18);font:inherit}
+            .fxmt-install-guide-card h2{margin:0 0 10px;font-size:20px;line-height:1.4;color:#fff}
+            .fxmt-install-guide-card p{margin:0 0 14px;color:#eadcf3;font-size:14px;line-height:1.8}
+            .fxmt-install-guide-step{padding:13px 14px;border:1px solid rgba(218,139,255,.25);border-radius:15px;background:rgba(255,255,255,.045);font-weight:700}
+            .fxmt-install-guide-secure{padding:12px 14px;border:1px solid rgba(255,200,111,.34);border-radius:14px;background:rgba(255,179,72,.08);color:#ffe3b0!important}
+            .fxmt-install-guide-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+            .fxmt-install-guide-actions button,.fxmt-install-guide-actions a{display:inline-flex;min-height:44px;align-items:center;justify-content:center;box-sizing:border-box;padding:10px 16px;border:1px solid rgba(226,155,255,.55);border-radius:14px;background:linear-gradient(120deg,#b75cff,#e35dd5);color:#fff;text-decoration:none;font:inherit;font-weight:800;cursor:pointer}
+            .fxmt-install-guide-actions [hidden]{display:none!important}
+            .fxmt-install-guide-actions button{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.2)}
+            @media(max-width:480px){.fxmt-install-guide-overlay{align-items:flex-end}.fxmt-install-guide-card{max-height:calc(100vh - 26px);max-height:calc(100dvh - 26px);padding:20px;border-radius:22px 22px 18px 18px}}
+            @media(prefers-reduced-motion:no-preference){.fxmt-install-guide-card{animation:fxmtInstallGuideIn .18s ease-out}@keyframes fxmtInstallGuideIn{from{opacity:.7;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}}
+          </style>
+          <section class="fxmt-install-guide-card" role="dialog" aria-modal="true" aria-labelledby="fxmtInstallGuideTitle" tabindex="-1">
+            <h2 id="fxmtInstallGuideTitle"></h2>
+            <p class="fxmt-install-guide-intro"></p>
+            <p class="fxmt-install-guide-step"></p>
+            <p class="fxmt-install-guide-secure" hidden></p>
+            <div class="fxmt-install-guide-actions">
+              <a class="fxmt-install-guide-open" href="https://compsaan.github.io/FXMTGlobal/" target="_blank" rel="noopener noreferrer" hidden></a>
+              <button class="fxmt-install-guide-close" type="button"></button>
+            </div>
+          </section>`;
+
+        const card = overlay.querySelector(".fxmt-install-guide-card");
+        overlay.querySelector("#fxmtInstallGuideTitle").textContent = language.title;
+        overlay.querySelector(".fxmt-install-guide-intro").textContent = language.intro;
+        overlay.querySelector(".fxmt-install-guide-step").textContent = instruction;
+        overlay.querySelector(".fxmt-install-guide-close").textContent = language.close;
+        const secureNotice = overlay.querySelector(".fxmt-install-guide-secure");
+        const secureLink = overlay.querySelector(".fxmt-install-guide-open");
+        if (!isSecureInstallOrigin) {
+          secureNotice.textContent = language.secure;
+          secureNotice.hidden = false;
+          secureLink.textContent = language.openSite;
+          secureLink.hidden = false;
+        }
+
+        const previouslyFocused = document.activeElement;
+        const previousBodyOverflow = document.body.style.overflow;
+        const closeGuide = () => {
+          document.removeEventListener("keydown", onGuideKeydown);
+          overlay.remove();
+          document.body.style.overflow = previousBodyOverflow;
+          if (previouslyFocused && previouslyFocused.isConnected) previouslyFocused.focus();
+        };
+        const onGuideKeydown = (event) => {
+          if (event.key === "Escape") closeGuide();
+        };
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) closeGuide();
+        });
+        overlay.querySelector(".fxmt-install-guide-close").addEventListener("click", closeGuide);
+        document.addEventListener("keydown", onGuideKeydown);
+        document.body.style.overflow = "hidden";
+        document.body.appendChild(overlay);
+        card.focus();
+      }
 
       window.addEventListener("beforeinstallprompt", (event) => {
         event.preventDefault();
@@ -16854,15 +17090,21 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }
 
         if (!deferredInstallPrompt) {
-          showToast(getInstallMessage("unavailable"));
+          showInstallHelp();
           return;
         }
 
-        deferredInstallPrompt.prompt();
-        const { outcome } = await deferredInstallPrompt.userChoice;
+        const installPrompt = deferredInstallPrompt;
         deferredInstallPrompt = null;
-        installButtons.forEach((button) => button.classList.remove("is-installable"));
-        if (outcome === "accepted") showToast(getInstallMessage("accepted"));
+        try {
+          await installPrompt.prompt();
+          const { outcome } = await installPrompt.userChoice;
+          if (outcome === "accepted") showToast(getInstallMessage("accepted"));
+        } catch (error) {
+          showInstallHelp();
+        } finally {
+          installButtons.forEach((button) => button.classList.remove("is-installable"));
+        }
       }
 
       installButtons.forEach((button) => button.addEventListener("click", promptInstallApp));
