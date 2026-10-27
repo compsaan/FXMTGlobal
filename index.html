@@ -12638,13 +12638,17 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         accountNotificationsMarkRead: "Mark all read",
         accountNotificationsSignIn: "Sign in to view account activity.",
         accountNotificationsEmpty: "No account activity yet",
-        accountNotificationsEmptyHint: "Deposits, withdrawals, transfers, referral rewards, sign-ins, and account changes will appear here.",
+        accountNotificationsEmptyHint: "Deposits, withdrawals, transfers, identity verification, referral rewards, sign-ins, and account changes will appear here.",
         accountNotificationsSummary: "{count} notifications · {unread} unread",
         accountNotificationDeposit: "Deposit",
         accountNotificationWithdraw: "Withdrawal",
         accountNotificationTransfer: "Transfer",
         accountNotificationReferralTitle: "Referral reward received",
         accountNotificationReferralDetail: "You earned {amount} USDT after {member}'s deposit.",
+        accountNotificationIdentityTitle: "Identity verification",
+        accountNotificationIdentitySubmittedDetail: "Your identity verification request was submitted and is under review.",
+        accountNotificationIdentityApprovedDetail: "Your identity verification was approved.",
+        accountNotificationIdentityRejectedDetail: "Your identity verification was rejected. Review the note and submit again.",
         accountNotificationLoginTitle: "New sign-in",
         accountNotificationLoginDetail: "Signed in from {device}.",
         accountNotificationSettingsTitle: "Account settings changed",
@@ -12967,13 +12971,17 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           accountNotificationsMarkRead: "قراءة الكل",
           accountNotificationsSignIn: "سجّل الدخول لعرض عمليات الحساب.",
           accountNotificationsEmpty: "لا توجد إشعارات حساب بعد",
-          accountNotificationsEmptyHint: "ستظهر هنا عمليات الإيداع والسحب والتحويل ومكافآت الإحالة وتسجيلات الدخول وتغييرات الحساب.",
+          accountNotificationsEmptyHint: "ستظهر هنا عمليات الإيداع والسحب والتحويل وتوثيق الهوية ومكافآت الإحالة وتسجيلات الدخول وتغييرات الحساب.",
           accountNotificationsSummary: "التنبيهات: {count} · غير المقروء: {unread}",
           accountNotificationDeposit: "إيداع",
           accountNotificationWithdraw: "سحب",
           accountNotificationTransfer: "تحويل",
           accountNotificationReferralTitle: "وصلتك مكافأة إحالة",
           accountNotificationReferralDetail: "حصلت على مكافأة بقيمة {amount} USDT بعد إيداع {member}.",
+          accountNotificationIdentityTitle: "توثيق الهوية",
+          accountNotificationIdentitySubmittedDetail: "تم إرسال طلب توثيق هويتك وهو قيد المراجعة.",
+          accountNotificationIdentityApprovedDetail: "تمت الموافقة على توثيق هويتك.",
+          accountNotificationIdentityRejectedDetail: "تم رفض توثيق هويتك. راجع الملاحظة ثم أعد إرسال الطلب.",
           accountNotificationLoginTitle: "تسجيل دخول جديد",
           accountNotificationLoginDetail: "تم تسجيل الدخول من {device}.",
           accountNotificationSettingsTitle: "تغيير إعدادات الحساب",
@@ -16014,6 +16022,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (!currentUser || !currentSessionToken) throw new Error("سجّل الدخول أولاً لتحديث بيانات الحساب.");
         const username = String(currentUser.username || localStorage.getItem("username") || "").trim();
         if (!username) throw new Error("تعذر تحديد الحساب لتحديث بياناته.");
+        syncIdentityVerificationNotificationStatus(currentUser.verificationStatus || "Unverified", { initializeOnly: true });
         const refreshEpoch = accountLocalDataEpoch;
         const sessionToken = currentSessionToken;
         const isSameAccountSession = () =>
@@ -16078,6 +16087,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (!verificationResponse.verificationStatus) {
           throw new Error("لم يُرجع الخادم حالة التوثيق.");
         }
+        syncIdentityVerificationNotificationStatus(verificationResponse.verificationStatus, {
+          caseId: verificationResponse.caseId
+        });
         currentUser.verificationStatus = normalizeIdentityVerificationStatus(verificationResponse.verificationStatus);
         currentUser.verificationNote = verificationResponse.verificationNote || currentUser.verificationNote || "";
         currentUser.verificationAdminNote = verificationResponse.adminNote || "";
@@ -17497,7 +17509,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             const saved = JSON.parse(localStorage.getItem(accountNotificationEventsKey(identity)) || "[]");
             if (Array.isArray(saved)) {
               saved.forEach((event) => {
-                if (event && event.id && ["login", "setting", "security", "referral"].includes(event.type)) events.push(event);
+                if (event && event.id && ["login", "setting", "security", "referral", "identity"].includes(event.type)) events.push(event);
               });
             }
           } catch (error) {}
@@ -17550,6 +17562,32 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             });
           });
 
+          const identityNotifications = Array.isArray(data.identityNotifications) ? data.identityNotifications : [];
+          const identityDetailKeys = new Set([
+            "accountNotificationIdentitySubmittedDetail",
+            "accountNotificationIdentityApprovedDetail",
+            "accountNotificationIdentityRejectedDetail"
+          ]);
+          identityNotifications.forEach((notification) => {
+            const id = String(notification?.id || "").trim();
+            const createdAt = new Date(notification?.createdAt || "");
+            const detailKey = String(notification?.detailKey || "");
+            if (
+              !id ||
+              notification?.type !== "identity" ||
+              notification?.titleKey !== "accountNotificationIdentityTitle" ||
+              !identityDetailKeys.has(detailKey) ||
+              Number.isNaN(createdAt.getTime())
+            ) return;
+            eventsById.set(id, {
+              id,
+              type: "identity",
+              titleKey: "accountNotificationIdentityTitle",
+              detailKey,
+              createdAt: createdAt.toISOString()
+            });
+          });
+
           const events = [...eventsById.values()]
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .slice(0, 50);
@@ -17563,10 +17601,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       };
       const recordAccountNotificationEvent = (type, options = {}) => {
         const identity = String(options.identity || currentUser?.username || "").trim().toLowerCase();
-        if (!identity || !["login", "setting", "security"].includes(type)) return null;
+        if (!identity || !["login", "setting", "security", "identity"].includes(type)) return null;
         const storageKey = accountNotificationEventsKey(identity);
         const event = {
-          id: `event-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+          id: options.id || `event-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
           type,
           titleKey: options.titleKey || "",
           detailKey: options.detailKey || "",
@@ -17582,6 +17620,51 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (currentUser?.username) renderAccountNotifications();
         return event;
       };
+      function syncIdentityVerificationNotificationStatus(status, options = {}) {
+        const username = String(currentUser?.username || "").trim().toLowerCase();
+        if (!username) return normalizeIdentityVerificationStatus(status);
+        const normalized = normalizeIdentityVerificationStatus(status);
+        const stateKey = `fxmt-identity-verification-notification-state-v1:${encodeURIComponent(username)}`;
+        let previousValue = "";
+        try { previousValue = localStorage.getItem(stateKey) || ""; } catch (error) {}
+        let previous = previousValue ? normalizeIdentityVerificationStatus(previousValue) : "";
+
+        if (options.submitted) {
+          const caseId = String(options.caseId || currentUser?.verificationDetails?.caseId || "").trim().toLowerCase();
+          recordAccountNotificationEvent("identity", {
+            id: caseId ? `identity-${caseId}-submitted` : undefined,
+            titleKey: "accountNotificationIdentityTitle",
+            detailKey: "accountNotificationIdentitySubmittedDetail"
+          });
+          try { localStorage.setItem(stateKey, normalized); } catch (error) {}
+          return normalized;
+        }
+
+        if (!previous) previous = normalizeIdentityVerificationStatus(currentUser?.verificationStatus || "Unverified");
+        if (options.initializeOnly) {
+          if (!previousValue) {
+            try { localStorage.setItem(stateKey, previous); } catch (error) {}
+          }
+          return normalized;
+        }
+        if (previous === "Pending" && normalized === "Verified") {
+          const caseId = String(options.caseId || currentUser?.verificationDetails?.caseId || "").trim().toLowerCase();
+          recordAccountNotificationEvent("identity", {
+            id: caseId ? `identity-${caseId}-verified` : undefined,
+            titleKey: "accountNotificationIdentityTitle",
+            detailKey: "accountNotificationIdentityApprovedDetail"
+          });
+        } else if (previous === "Pending" && normalized === "Rejected") {
+          const caseId = String(options.caseId || currentUser?.verificationDetails?.caseId || "").trim().toLowerCase();
+          recordAccountNotificationEvent("identity", {
+            id: caseId ? `identity-${caseId}-rejected` : undefined,
+            titleKey: "accountNotificationIdentityTitle",
+            detailKey: "accountNotificationIdentityRejectedDetail"
+          });
+        }
+        try { localStorage.setItem(stateKey, normalized); } catch (error) {}
+        return normalized;
+      }
       const accountNotificationStatus = (status) => {
         const value = String(status || "").trim().toLowerCase();
         if (["completed", "approved", "success", "successful", "confirmed", "paid"].includes(value)) return "completed";
@@ -17639,6 +17722,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           withdraw: t("accountNotificationWithdraw"),
           transfer: t("accountNotificationTransfer"),
           referral: t("accountNotificationReferralTitle"),
+          identity: t("accountNotificationIdentityTitle"),
           login: t("accountNotificationLoginTitle"),
           setting: t("accountNotificationSettingsTitle"),
           security: t("accountNotificationSecurityTitle")
@@ -17657,6 +17741,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             withdraw: "fa-arrow-up",
             transfer: "fa-arrow-right-arrow-left",
             referral: "fa-gift",
+            identity: "fa-id-card",
             login: "fa-right-to-bracket",
             setting: "fa-sliders",
             security: "fa-shield-halved"
@@ -21758,11 +21843,20 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         return status;
       }
       async function ivLoadStatusFromServer() {
-        if (!currentSessionToken || !currentUser) return;
+        const requestedSessionToken = String(currentSessionToken || '');
+        const requestedUsername = String(currentUser?.username || '').trim().toLowerCase();
+        if (!requestedSessionToken || !requestedUsername) return;
         try {
           const result = await apiRequest({ action:'getVerificationStatus' });
+          if (
+            currentSessionToken !== requestedSessionToken ||
+            String(currentUser?.username || '').trim().toLowerCase() !== requestedUsername
+          ) return;
           if (!result || !result.verificationStatus) throw new Error(result?.message || 'تعذر قراءة حالة التوثيق من الخادم');
           const details = result.verificationDetails || null;
+          syncIdentityVerificationNotificationStatus(result.verificationStatus, {
+            caseId: result.caseId
+          });
           if (currentUser) {
             currentUser.verificationStatus = result.verificationStatus;
             currentUser.verificationAdminNote = result.adminNote || '';
@@ -21776,6 +21870,14 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           if (!ivLayer.hidden) ivMessage.textContent = error.message || ivCopy[ivLang()].error;
         }
       }
+      window.setInterval(() => {
+        if (
+          document.visibilityState === 'visible' &&
+          currentSessionToken &&
+          currentUser?.username &&
+          normalizeIdentityVerificationStatus(currentUser.verificationStatus || 'Unverified') === 'Pending'
+        ) ivLoadStatusFromServer();
+      }, 60000);
       function openIdentityVerification() {
         const nameField = document.getElementById('ivFullName');
         if (!nameField.value) nameField.value = String((currentUser && currentUser.fullName) || localStorage.getItem('fullName') || '').slice(0,180);
@@ -21938,6 +22040,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           const backImage = await (ivPreparedImages.ivBackImage && ivPreparedImages.ivBackImage.file === backFile ? ivPreparedImages.ivBackImage.promise : ivReadImage(backFile));
           const result = await apiRequest({ action:'submitVerification', fullName, country, docType, docNumber, frontImage, backImage, consentAccepted:true }, { timeoutMs:90000 });
           if (result.verificationStatus !== 'Pending') throw new Error(result.message || 'تعذر إرسال الطلب');
+          syncIdentityVerificationNotificationStatus('Pending', {
+            submitted: true,
+            caseId: result.caseId
+          });
           document.getElementById('ivStatusDetail').dataset.adminNote = '';
           ivLastDetails = null;
           if (currentUser) currentUser.verificationDetails = null;
@@ -21948,6 +22054,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           ivPreview(document.getElementById('ivBackImage'), 'ivBackPreview', 'ivBackName');
           closeIdentityVerification();
           ivShowPendingToast();
+          syncReferralRewardNotifications();
         } catch (error) {
           ivMessage.textContent = error.message || (ivLang() === 'ar' ? 'تعذر إرسال الطلب.' : 'Could not submit the request.');
         } finally {
