@@ -14440,7 +14440,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         applyStaticTranslations();
         closeLanguageMenu();
         const selectedOption = languageSelect.options[languageSelect.selectedIndex];
-        if (currentUser?.username && previousLanguage !== currentLanguage) {
+        if (announce && currentUser?.username && previousLanguage !== currentLanguage) {
           recordAccountNotificationEvent("setting", {
             identity: currentUser.username,
             titleKey: "accountNotificationSettingsTitle",
@@ -16001,7 +16001,19 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         userRefreshTimer = window.setInterval(() => {
           if (document.visibilityState === "visible") refreshCurrentUser(true);
         }, 20000);
-        syncBalanceFromServer();
+        const username = String(currentUser?.username || localStorage.getItem("username") || "").trim();
+        if (username) {
+          pullAccountDataFromServer(username).then((loaded) => {
+            if (!loaded) {
+              showToast(currentLanguage === "ar"
+                ? "تعذر تحميل بيانات الحساب من السحابة. تحقق من الاتصال ثم اسحب للتحديث."
+                : "Could not load account data from the cloud. Check your connection and pull to refresh.");
+            }
+            syncBalanceFromServer();
+          });
+        } else {
+          syncBalanceFromServer();
+        }
         if (!userRefreshVisibilityHandlerAdded) {
           userRefreshVisibilityHandlerAdded = true;
           document.addEventListener("visibilitychange", () => {
@@ -16254,8 +16266,46 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       installPullToRefresh();
 
       const cachedUserStorageKey = "fxmt-current-user-v1";
+      const accountBrowserBackupPrefix = "fxmt-account-browser-backup-v1:";
+      const accountBrowserBackupUserFields = [
+        "id", "serverId", "uid", "identitySource", "username", "email", "fullName",
+        "balance", "accountStatus", "depositStatus", "referralCode", "referralLink",
+        "teamEarnings", "teamCount", "createdAt", "lastLogin", "invitedBy",
+        "verificationStatus", "verificationNote", "verifiedAt"
+      ];
+      function accountBrowserBackupKey(username) {
+        const normalized = String(username || "").trim().toLowerCase();
+        return normalized ? accountBrowserBackupPrefix + encodeURIComponent(normalized) : "";
+      }
+      function accountBrowserBackupRead(username) {
+        const key = accountBrowserBackupKey(username);
+        if (!key) return null;
+        try {
+          const backup = JSON.parse(localStorage.getItem(key) || "null");
+          if (
+            !backup || backup.version !== 1 ||
+            String(backup.username || "").trim().toLowerCase() !== String(username).trim().toLowerCase()
+          ) return null;
+          return backup;
+        } catch (error) {
+          return null;
+        }
+      }
+      function accountBrowserSafeUser(user) {
+        if (!user || typeof user !== "object") return null;
+        const safeUser = {};
+        accountBrowserBackupUserFields.forEach((field) => {
+          if (user[field] !== undefined && user[field] !== null) safeUser[field] = user[field];
+        });
+        return safeUser.id && safeUser.username ? safeUser : null;
+      }
       function saveCachedUser(user) {
-        try { if (user && user.id) localStorage.setItem(cachedUserStorageKey, JSON.stringify(user)); } catch (e) {}
+        try {
+          if (user && user.id) {
+            localStorage.setItem(cachedUserStorageKey, JSON.stringify(user));
+            accountBrowserBackupWrite(user.username, user);
+          }
+        } catch (e) {}
       }
       function readCachedUser() {
         try { const u = JSON.parse(localStorage.getItem(cachedUserStorageKey) || "null"); return u && u.id ? u : null; } catch (e) { return null; }
@@ -16293,7 +16343,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             if (changed) { localStorage.setItem(key, JSON.stringify(items)); changedAny = true; }
           } catch (e) {}
         });
-        if (changedAny) renderRecentTransactions();
+        if (changedAny) {
+          accountBrowserBackupWrite();
+          renderRecentTransactions();
+        }
         if (completedNow) showToast("تمت الموافقة على طلب السحب وأصبح مكتملاً.");
         return changedAny;
       }
@@ -16314,7 +16367,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         balanceSyncUser = "";
         balanceIsAuthoritative = false;
         balanceSyncError = false;
+        try { accountBrowserBackupWrite(currentUser?.username || ""); } catch (error) {}
         currentSessionToken = "";
+        accountCloudReadyFor = "";
         deviceHistoryServerKey = "";
         currentUser = null;
         try {
@@ -16326,15 +16381,22 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
 
       async function restoreSavedSession() {
+        // Let the remaining account-cache helpers initialize before restoring
+        // the per-user browser backup.
+        await Promise.resolve();
         let savedToken = "";
         try {
           savedToken = localStorage.getItem(authSessionStorageKey) || "";
         } catch (error) {
           return;
         }
-        const cachedUserCandidate = readCachedUser();
         let storedUsername = "";
         try { storedUsername = localStorage.getItem("username") || ""; } catch (error) {}
+        if (
+          storedUsername &&
+          accountLocalOwnerName() === storedUsername.trim().toLowerCase()
+        ) accountBrowserBackupRestore(storedUsername);
+        const cachedUserCandidate = readCachedUser();
         const cachedUser = cachedUserCandidate &&
           (!storedUsername || String(cachedUserCandidate.username || "").trim().toLowerCase() === storedUsername.trim().toLowerCase())
           ? cachedUserCandidate
@@ -16400,7 +16462,6 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           if (typeof renderWalletActivity === "function") renderWalletActivity();
           syncLatestDepositRecord(currentUser.depositStatus);
           startCurrentUserRefresh();
-          pullAccountDataFromServer(currentUser.username || localStorage.getItem("username") || "");
           welcomeScreen.classList.add("is-hidden");
         } catch (error) {
           if (["invalid_session", "session_expired", "user_not_found", "account_banned"].includes(error.code)) {
@@ -16824,7 +16885,6 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           updateCurrentWalletView();
           syncLatestDepositRecord(currentUser.depositStatus);
           startCurrentUserRefresh();
-          pullAccountDataFromServer(user.username || identifier);
           setAuthStatus(loginStatus, t("loginSuccess"), true);
           setTimeout(() => closeWelcome(t("loginSuccess")), 350);
         } catch (error) {
@@ -17592,6 +17652,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .slice(0, 50);
           localStorage.setItem(storageKey, JSON.stringify(events));
+          accountBrowserBackupWrite(username);
+          if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
           if (
             currentUser?.username &&
             String(currentUser.username).trim().toLowerCase() === identity &&
@@ -17616,6 +17678,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           const events = Array.isArray(saved) ? saved : [];
           events.unshift(event);
           localStorage.setItem(storageKey, JSON.stringify(events.slice(0, 50)));
+          accountBrowserBackupWrite(identity);
+          if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
         } catch (error) {}
         if (currentUser?.username) renderAccountNotifications();
         return event;
@@ -17637,6 +17701,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             detailKey: "accountNotificationIdentitySubmittedDetail"
           });
           try { localStorage.setItem(stateKey, normalized); } catch (error) {}
+          accountBrowserBackupWrite(username);
+          if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
           return normalized;
         }
 
@@ -17644,6 +17710,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (options.initializeOnly) {
           if (!previousValue) {
             try { localStorage.setItem(stateKey, previous); } catch (error) {}
+            accountBrowserBackupWrite(username);
+            if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
           }
           return normalized;
         }
@@ -17663,6 +17731,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           });
         }
         try { localStorage.setItem(stateKey, normalized); } catch (error) {}
+        accountBrowserBackupWrite(username);
+        if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
         return normalized;
       }
       const accountNotificationStatus = (status) => {
@@ -17798,6 +17868,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         const readKey = accountNotificationReadKey();
         const records = getAccountNotificationRecords();
         try { localStorage.setItem(readKey, JSON.stringify(records.map(accountNotificationRecordKey))); } catch (error) {}
+        accountBrowserBackupWrite(username);
+        if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
         renderAccountNotifications();
       });
       window.addEventListener("storage", (event) => {
@@ -17991,6 +18063,63 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }
       };
 
+      const walletActivityTransactionId = (record) =>
+        String(record?.transactionId || record?.txid || record?.depositTxid || "").trim().toLowerCase();
+
+      const walletActivitySameRecord = (a, b) => {
+        if (!a || !b || String(a.type || "") !== String(b.type || "")) return false;
+        const refsA = [a.id, a.requestReference, a.requestId].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+        const refsB = [b.id, b.requestReference, b.requestId].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+        if (refsA.some((ref) => refsB.includes(ref))) return true;
+
+        const txA = walletActivityTransactionId(a);
+        const txB = walletActivityTransactionId(b);
+        if (txA || txB) return Boolean(txA && txB && txA === txB);
+        if (a.type === "deposit") return false;
+
+        const timeA = Date.parse(a.createdAt || "");
+        const timeB = Date.parse(b.createdAt || "");
+        return Number.isFinite(timeA) && Number.isFinite(timeB) &&
+          Math.abs(Number(a.amount) - Number(b.amount)) < 0.001 &&
+          Math.abs(timeA - timeB) < 600000;
+      };
+
+      const walletActivityMergePair = (existing, incoming) => {
+        const existingIsServer = Boolean(existing?.fromServer);
+        const incomingIsServer = Boolean(incoming?.fromServer);
+        const statusRank = { pending: 1, rejected: 2, completed: 3 };
+        const incomingWinsStatus = incomingIsServer
+          ? true
+          : existingIsServer
+            ? false
+            : (statusRank[incoming?.status] || 0) > (statusRank[existing?.status] || 0);
+        const merged = { ...existing, ...incoming };
+        [
+          "id", "requestReference", "requestId", "userId", "username", "accountOwner",
+          "transactionId", "txid", "network", "networkName", "address"
+        ].forEach((key) => {
+          if (existing?.[key] && !incoming?.[key]) merged[key] = existing[key];
+        });
+        if (!incomingIsServer && existingIsServer) merged.createdAt = existing.createdAt || incoming.createdAt;
+        else merged.createdAt = incoming.createdAt || existing.createdAt;
+        const statusSource = incomingWinsStatus ? incoming : existing;
+        merged.status = statusSource?.status || existing?.status || incoming?.status || "pending";
+        merged.statusCode = statusSource?.statusCode || existing?.statusCode || incoming?.statusCode || "";
+        merged.fromServer = existingIsServer || incomingIsServer;
+        return merged;
+      };
+
+      const walletActivityMergeRecords = (records) => {
+        const merged = [];
+        (Array.isArray(records) ? records : []).forEach((record) => {
+          if (!record || typeof record !== "object") return;
+          const existingIndex = merged.findIndex((item) => walletActivitySameRecord(item, record));
+          if (existingIndex < 0) merged.push(record);
+          else merged[existingIndex] = walletActivityMergePair(merged[existingIndex], record);
+        });
+        return merged;
+      };
+
       const walletActivityFromRequests = () => {
         const sources = [
           { key: "fxmt-deposit-requests", type: "deposit", title: "إيداع USDT" },
@@ -18032,14 +18161,18 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           return !recordId || !allowedIds.size || allowedIds.has(recordId);
         };
         const saved = walletActivityReadStorage();
-        const deviceRecords = [...walletActivityFromRequests(), ...saved, ...walletActivitySeed]
-          .filter((record) => record?.type !== "transfer" && belongsToActiveAccount(record));
-        const combined = [...walletActivityRemoteTransfers.filter(belongsToActiveAccount), ...deviceRecords];
-        const unique = new Map();
-        combined.forEach((record) => {
-          if (record && record.id && !unique.has(record.id)) unique.set(record.id, record);
-        });
-        return [...unique.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const deviceRecords = walletActivityMergeRecords([...walletActivityFromRequests(), ...saved, ...walletActivitySeed]
+          .filter((record) => record?.type !== "transfer" && belongsToActiveAccount(record)));
+        try {
+          const normalizedCache = JSON.stringify(deviceRecords.slice(0, 300));
+          if (JSON.stringify(saved) !== normalizedCache) {
+            localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, normalizedCache);
+          }
+        } catch (error) {}
+        return walletActivityMergeRecords([
+          ...walletActivityRemoteTransfers.filter(belongsToActiveAccount),
+          ...deviceRecords
+        ]).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       };
 
       const fxSaveWalletActivity = (record) => {
@@ -18052,9 +18185,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             username: record.username || currentUser?.username || "",
             accountOwner: record.accountOwner || currentUser?.username || ""
           };
-          const items = walletActivityReadStorage().filter((item) => item.id !== ownedRecord.id);
-          items.unshift(ownedRecord);
+          const items = walletActivityMergeRecords([...walletActivityReadStorage(), ownedRecord]);
+          items.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
           localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, JSON.stringify(items.slice(0, 300)));
+          accountBrowserBackupWrite();
           renderAccountNotifications();
         } catch (error) {}
       };
@@ -19365,26 +19499,48 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             requestId,
             createdAt: new Date().toISOString(),
           });
+          const responsePayload = responseData(response) || {};
+          const serverDeposit = responsePayload.deposit || response.deposit || {};
+          const actualTxid = String(serverDeposit.txid || responsePayload.txid || response.txid || txid).trim();
+          const duplicateDeposit = response.duplicate === true || responsePayload.duplicate === true;
+          const depositStatus = normalizeDepositStatus(
+            serverDeposit.statusCode || serverDeposit.status ||
+            responsePayload.statusCode || responsePayload.status || response.statusCode || response.status
+          ) || "pending";
+          const canonicalAmount = Number(serverDeposit.amount ?? responsePayload.amount ?? response.amount ?? amount);
+          const requestAmount = Number.isFinite(canonicalAmount) && canonicalAmount > 0 ? canonicalAmount : amount;
           const returnedUser = readUserFromResponse(response, currentUser);
           currentUser = { ...returnedUser, balance: previousBalance };
-          // A new request is always pending until approved in the spreadsheet; no balance is added here.
-          currentUser.depositStatus = "pending";
+          // Show the server status immediately; the wallet balance still comes only from the server.
+          currentUser.depositStatus = depositStatus;
+          let previousRequests = [];
+          try {
+            const storedRequests = JSON.parse(localStorage.getItem("fxmt-deposit-requests") || "[]");
+            if (Array.isArray(storedRequests)) previousRequests = storedRequests;
+          } catch (error) {}
+          const transactionKey = actualTxid.toLowerCase();
+          const existingRequest = previousRequests.find((item) =>
+            String(item?.transactionId || item?.txid || "").trim().toLowerCase() === transactionKey
+          );
+          const serverTimestamp = serverDeposit.timestamp || responsePayload.timestamp || response.timestamp || "";
           const request = {
-            id: requestId,
-            requestReference: readRequestReference(response, requestId),
+            id: existingRequest?.id || requestId,
+            requestReference: readRequestReference(response, existingRequest?.requestReference || requestId),
             userId: currentUser.id,
-            amount,
+            amount: requestAmount,
             asset: "USDT",
-            network: network.dataset.network,
-            networkName: network.dataset.name,
-            transactionId: txid,
-            status: currentUser.depositStatus,
-            createdAt: new Date().toISOString(),
+            network: serverDeposit.network || existingRequest?.network || network.dataset.network,
+            networkName: serverDeposit.networkName || existingRequest?.networkName || network.dataset.name,
+            transactionId: actualTxid,
+            status: depositStatus,
+            createdAt: existingRequest?.createdAt || serverTimestamp || new Date().toISOString(),
           };
           try {
             const storageKey = "fxmt-deposit-requests";
-            const previous = JSON.parse(localStorage.getItem(storageKey) || "[]");
-            const requests = Array.isArray(previous) ? previous : [];
+            const requests = previousRequests.filter((item) =>
+              String(item?.transactionId || item?.txid || "").trim().toLowerCase() !== transactionKey &&
+              String(item?.id || "") !== String(request.id)
+            );
             requests.unshift(request);
             localStorage.setItem(storageKey, JSON.stringify(requests.slice(0, 100)));
           } catch (error) {
@@ -19398,7 +19554,11 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           depositTimerInterval = null;
           document.getElementById("depositRequestId").textContent = String(request.requestReference || requestId);
           document.getElementById("depositSuccessDescription").textContent =
-            `${formatDepositAmount(amount)} USDT عبر ${network.dataset.name}. تم تقديم الطلب، بانتظار الموافقة.`;
+            duplicateDeposit
+              ? (currentLanguage === "ar"
+                ? "رقم المعاملة مسجل مسبقاً. تم تحديث السجل الموجود دون إضافة عملية ثانية."
+                : "This transaction ID was already recorded. The existing entry was updated without adding another.")
+              : `${formatDepositAmount(requestAmount)} USDT عبر ${network.dataset.name}. تم تقديم الطلب، بانتظار الموافقة.`;
           setDepositStep(4);
         } catch (error) {
           document.getElementById("depositRequestError").textContent = error.message || "تعذر إرسال طلب الإيداع.";
@@ -20723,7 +20883,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               if (changed) { localStorage.setItem(key, JSON.stringify(items)); changedAny = true; }
             } catch (e) {}
           });
-          if (changedAny) renderRecentTransactions();
+          if (changedAny) {
+            accountBrowserBackupWrite();
+            renderRecentTransactions();
+          }
           if (completedNow) showToast("تمت الموافقة على طلب السحب.");
         } catch (e) {}
       }
@@ -20885,27 +21048,33 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           add(rowsOf(dep, "deposits"), "deposit", "إيداع USDT");
           add(rowsOf(wd, "withdrawals"), "withdraw", "سحب USDT");
           const scopedLocal = accountSyncFilterOwnedEntries(JSON.stringify(walletActivityReadStorage()));
-          const local = JSON.parse(scopedLocal.raw || "[]");
+          const rawLocal = JSON.parse(scopedLocal.raw || "[]");
+          const local = walletActivityMergeRecords(rawLocal);
+          let changed = local.length !== rawLocal.length;
           if (scopedLocal.removedForeign) {
             localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, JSON.stringify(local));
           }
           if (!remote.length) {
-            if (scopedLocal.removedForeign) {
+            if (changed || scopedLocal.removedForeign) {
+              localStorage.setItem(WALLET_ACTIVITY_STORAGE_KEY, JSON.stringify(local.slice(0, 300)));
               renderRecentTransactions();
               if (typeof renderWalletActivity === "function") renderWalletActivity();
+              if (typeof pushAccountDataToServer === "function") pushAccountDataToServer();
             }
             return true;
           }
-          const sameRecord = (a, b) => a.type === b.type && (
-            (b.requestReference && (String(a.id) === b.requestReference || String(a.requestReference || "") === b.requestReference)) ||
-            String(a.id) === String(b.id) ||
-            (Math.abs(Number(a.amount) - Number(b.amount)) < 0.001 && Math.abs(Date.parse(a.createdAt) - Date.parse(b.createdAt)) < 600000));
-          let changed = false;
           remote.forEach((r) => {
-            const existing = local.find((l) => sameRecord(l, r));
-            if (existing) {
-              if (existing.status !== r.status) { existing.status = r.status; changed = true; }
-            } else { local.push(r); changed = true; }
+            const existingIndex = local.findIndex((item) => walletActivitySameRecord(item, r));
+            if (existingIndex < 0) {
+              local.push(r);
+              changed = true;
+              return;
+            }
+            const merged = walletActivityMergePair(local[existingIndex], r);
+            if (JSON.stringify(merged) !== JSON.stringify(local[existingIndex])) {
+              local[existingIndex] = merged;
+              changed = true;
+            }
           });
           if (changed) {
             local.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -20923,9 +21092,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           if (historyEpoch === accountLocalDataEpoch) fxHistorySyncing = false;
         }
       }
-      // ===== مزامنة كامل بيانات الحساب مع جدول البيانات =====
-      // كل ما يخص المستخدم (سجل المحفظة، طلبات الإيداع/السحب/التحويل)
-      // يُرفع إلى جدول البيانات ويُسترجع على أي جهاز عند تسجيل الدخول.
+      // ===== مزامنة بيانات الحساب مع التخزين السحابي =====
+      // تُحفظ سجلات الحساب والإشعارات وتفضيل اللغة في الجدول، ثم تُستعاد
+      // بعد المصادقة؛ نسخة المتصفح احتياطية وليست مرجع البيانات الأساسي.
       const ACCOUNT_SYNC_KEYS = [
         "fxmt-wallet-activity-v1",
         "fxmt-deposit-requests",
@@ -20945,6 +21114,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       let accountPulling = false;
       let accountLocalDataEpoch = 0;
       let accountPullRequestId = 0;
+      let accountCloudReadyFor = "";
 
       function accountLocalCachePrefix(username) {
         const normalized = String(username || "").trim().toLowerCase();
@@ -20957,7 +21127,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         try { return String(localStorage.getItem(ACCOUNT_LOCAL_OWNER_KEY) || "").trim().toLowerCase(); } catch (e) { return ""; }
       }
       function accountLocalLiveKeys() {
-        const keys = [...ACCOUNT_SYNC_KEYS, ACCOUNT_SYNC_TS_KEY];
+        const keys = [...ACCOUNT_SYNC_KEYS, ACCOUNT_SYNC_TS_KEY, "fxmt-wallet-language"];
         try {
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -20965,6 +21135,132 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           }
         } catch (e) {}
         return [...new Set(keys)];
+      }
+      function accountBrowserBackupLiveKeys(username, user = null) {
+        const normalized = String(username || "").trim().toLowerCase();
+        if (!normalized) return [];
+        const matchesAccount = (candidate) =>
+          String(candidate?.username || "").trim().toLowerCase() === normalized;
+        const sourceUser = [user, currentUser, readCachedUser()].find(matchesAccount) || {};
+        const localUsername = String(localStorage.getItem("username") || "").trim().toLowerCase();
+        const localEmail = localUsername === normalized ? localStorage.getItem("email") || "" : "";
+        const localUid = localUsername === normalized ? localStorage.getItem("uid") || "" : "";
+        const aliases = [...new Set([
+          normalized, sourceUser.email, sourceUser.id, sourceUser.serverId, sourceUser.uid,
+          localEmail, localUid
+        ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean))];
+        const keys = [...ACCOUNT_SYNC_KEYS, ACCOUNT_SYNC_TS_KEY, "fxmt-wallet-language"];
+        aliases.forEach((alias) => {
+          keys.push(`fxmt-account-notification-events-v1:${encodeURIComponent(alias)}`);
+          keys.push(`fxmt-sync-simulation-v2:${encodeURIComponent(alias)}`);
+        });
+        keys.push(`fxmt-account-notifications-read-v1:${normalized}`);
+        keys.push(`fxmt-identity-verification-notification-state-v1:${encodeURIComponent(normalized)}`);
+        return [...new Set(keys)];
+      }
+      function accountBrowserBackupWrite(username = "", userOverride = null) {
+        const normalized = String(
+          username || userOverride?.username || currentUser?.username || localStorage.getItem("username") || ""
+        ).trim().toLowerCase();
+        if (!normalized || accountLocalOwnerName() !== normalized) return false;
+        try {
+          const sourceUser = [userOverride, currentUser, readCachedUser()].find((candidate) =>
+            String(candidate?.username || "").trim().toLowerCase() === normalized
+          ) || null;
+          const data = {};
+          accountBrowserBackupLiveKeys(normalized, sourceUser).forEach((key) => {
+            let raw = localStorage.getItem(key);
+            if (raw === null) return;
+            if (ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
+              raw = accountStampLegacyEntries(raw, normalized);
+              if (localStorage.getItem(key) !== raw) localStorage.setItem(key, raw);
+            }
+            data[key] = raw;
+          });
+          const backup = {
+            version: 1,
+            username: normalized,
+            savedAt: Date.now(),
+            user: accountBrowserSafeUser(sourceUser),
+            data
+          };
+          localStorage.setItem(accountBrowserBackupKey(normalized), JSON.stringify(backup));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+      function accountBrowserMergeSimpleList(localRaw, backupRaw) {
+        let local = [], saved = [];
+        try { local = JSON.parse(localRaw || "[]"); } catch (e) {}
+        try { saved = JSON.parse(backupRaw || "[]"); } catch (e) {}
+        if (!Array.isArray(local)) local = [];
+        if (!Array.isArray(saved)) saved = [];
+        const merged = [...local];
+        const keys = new Set(merged.map((item) => String(
+          item && typeof item === "object" ? item.id || JSON.stringify(item) : item
+        )));
+        saved.forEach((item) => {
+          const key = String(item && typeof item === "object" ? item.id || JSON.stringify(item) : item);
+          if (!keys.has(key)) {
+            keys.add(key);
+            merged.push(item);
+          }
+        });
+        return JSON.stringify(merged.slice(0, 100));
+      }
+      function accountBrowserBackupRestore(username) {
+        const normalized = String(username || "").trim().toLowerCase();
+        if (!normalized || accountLocalOwnerName() !== normalized) return false;
+        const backup = accountBrowserBackupRead(normalized);
+        if (!backup) return false;
+        try {
+          const allowedKeys = new Set(accountBrowserBackupLiveKeys(normalized, backup.user));
+          const backupData = backup.data && typeof backup.data === "object" ? backup.data : {};
+          Object.keys(backupData).forEach((key) => {
+            if (!allowedKeys.has(key)) return;
+            const savedRaw = backupData[key];
+            if (typeof savedRaw !== "string") return;
+            const localRaw = localStorage.getItem(key);
+            let nextRaw = savedRaw;
+            if (localRaw !== null && localRaw !== "") {
+              if (key.indexOf("fxmt-sync-simulation-v2:") === 0) {
+                nextRaw = accountSyncMergeSimulation(localRaw, savedRaw) || localRaw;
+              } else if (key === ACCOUNT_SYNC_TS_KEY) {
+                nextRaw = String(Math.max(Number(localRaw) || 0, Number(savedRaw) || 0));
+              } else if (ACCOUNT_SYNC_KEYS.includes(key)) {
+                nextRaw = accountSyncMergeList(localRaw, savedRaw);
+              } else if (
+                key.indexOf("fxmt-account-notification-events-v1:") === 0 ||
+                key.indexOf("fxmt-account-notifications-read-v1:") === 0
+              ) {
+                nextRaw = accountBrowserMergeSimpleList(localRaw, savedRaw);
+              } else {
+                nextRaw = localRaw;
+              }
+            }
+            if (nextRaw !== localRaw) localStorage.setItem(key, nextRaw);
+          });
+          const savedUser = accountBrowserSafeUser(backup.user);
+          if (savedUser) {
+            const liveUser = readCachedUser();
+            const matchingLiveUser = liveUser &&
+              String(liveUser.username || "").trim().toLowerCase() === normalized
+              ? liveUser
+              : {};
+            const restoredUser = { ...savedUser, ...matchingLiveUser };
+            localStorage.setItem(cachedUserStorageKey, JSON.stringify(restoredUser));
+            ["username", "email", "uid", "fullName", "referralCode", "referralLink"].forEach((field) => {
+              if (restoredUser[field] !== undefined && restoredUser[field] !== null && restoredUser[field] !== "") {
+                localStorage.setItem(field, String(restoredUser[field]));
+              }
+            });
+          }
+          accountStampLocalData(normalized);
+          return true;
+        } catch (error) {
+          return false;
+        }
       }
       function accountStampLegacyEntries(raw, username) {
         try {
@@ -21014,6 +21310,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             accountLocalDataEpoch++;
             accountPullRequestId++;
             accountPulling = false;
+            accountCloudReadyFor = "";
             if (accountPushTimer) window.clearTimeout(accountPushTimer);
             accountPushTimer = null;
             accountLocalLiveKeys().forEach((key) => localStorage.removeItem(key));
@@ -21022,7 +21319,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             walletActivityRemoteTransfers = [];
             try { fxHistorySyncing = false; } catch (e) {}
             localStorage.setItem(ACCOUNT_LOCAL_OWNER_KEY, target);
+            accountBrowserBackupRestore(target);
             accountStampLocalData(target);
+            accountBrowserBackupWrite(target);
             resetAccountRefreshThrottle();
             try { renderRecentTransactions(); } catch (e) {}
             try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (e) {}
@@ -21032,13 +21331,16 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           const owner = savedOwner.toLowerCase();
           if (owner === targetNormalized) {
             accountStampLocalData(target);
+            accountBrowserBackupWrite(target);
             resetAccountRefreshThrottle();
             return false;
           }
 
+          accountBrowserBackupWrite(owner);
           accountLocalDataEpoch++;
           accountPullRequestId++;
           accountPulling = false;
+          accountCloudReadyFor = "";
           if (accountPushTimer) window.clearTimeout(accountPushTimer);
           accountPushTimer = null;
           try { fxHistorySyncing = false; } catch (e) {}
@@ -21077,7 +21379,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           });
           walletActivityRemoteTransfers = [];
           localStorage.setItem(ACCOUNT_LOCAL_OWNER_KEY, target);
+          accountBrowserBackupRestore(target);
           accountStampLocalData(target);
+          accountBrowserBackupWrite(target);
           resetAccountRefreshThrottle();
           try { renderRecentTransactions(); } catch (e) {}
           try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (e) {}
@@ -21092,7 +21396,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         try { return Number(localStorage.getItem(ACCOUNT_SYNC_TS_KEY) || 0) || 0; } catch (e) { return 0; }
       }
       function accountSyncSetTs(ts) {
-        try { localStorage.setItem(ACCOUNT_SYNC_TS_KEY, String(ts)); } catch (e) {}
+        try {
+          localStorage.setItem(ACCOUNT_SYNC_TS_KEY, String(ts));
+          accountBrowserBackupWrite();
+        } catch (e) {}
       }
       function accountSyncAllowedUserIds() {
         const user = currentUser || {};
@@ -21126,8 +21433,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
       function accountSyncCollectPayload() {
         const data = {};
-        const keys = [...ACCOUNT_SYNC_KEYS];
-        try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf("fxmt-sync-simulation-v2:") === 0) keys.push(k); } } catch (e) {}
+        const username = fxUser();
+        const keys = accountBrowserBackupLiveKeys(username, currentUser)
+          .filter((key) => key !== ACCOUNT_SYNC_TS_KEY);
         keys.forEach((key) => {
           try {
             const raw = localStorage.getItem(key);
@@ -21151,6 +21459,26 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         });
         return data;
       }
+      function accountSyncHasLocalOnlyData(remoteData) {
+        const localData = accountSyncCollectPayload();
+        return Object.keys(localData).some((key) => {
+          if (Object.prototype.hasOwnProperty.call(remoteData || {}, key)) return false;
+          const raw = localData[key];
+          if (
+            ACCOUNT_SYNC_KEYS.includes(key) ||
+            key.indexOf("fxmt-account-notification-events-v1:") === 0 ||
+            key.indexOf("fxmt-account-notifications-read-v1:") === 0
+          ) {
+            try {
+              const items = JSON.parse(raw || "[]");
+              return Array.isArray(items) && items.length > 0;
+            } catch (e) {
+              return !!raw;
+            }
+          }
+          return !!raw && raw !== "null";
+        });
+      }
       // دمج قوائم السجل: لا تكرار، ولا حذف لسجلات موجودة على الجهاز.
       function accountSyncMergeList(localRaw, remoteRaw) {
         let local = [], remote = [];
@@ -21158,18 +21486,14 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         try { remote = JSON.parse(remoteRaw || "[]"); } catch (e) {}
         if (!Array.isArray(local)) local = [];
         if (!Array.isArray(remote)) remote = [];
-        const keyOf = (r) => String(r?.id || r?.requestReference || r?.transactionId || r?.txid || "");
-        const merged = [...local];
+        const merged = walletActivityMergeRecords(local);
         remote.forEach((r) => {
-          const rk = keyOf(r);
-          const existing = rk
-            ? merged.find((l) => keyOf(l) === rk)
-            : merged.find((l) => l.type === r.type && Math.abs(Number(l.amount) - Number(r.amount)) < 0.001 && Math.abs(Date.parse(l.createdAt || 0) - Date.parse(r.createdAt || 0)) < 600000);
-          if (existing) {
-            // حالة الخادم هي المرجع (موافقات الإدارة تتم من الجدول).
-            if (r.status && existing.status !== r.status) existing.status = r.status;
-          } else {
+          const existingIndex = merged.findIndex((item) => walletActivitySameRecord(item, r));
+          if (existingIndex < 0) {
             merged.push(r);
+          } else {
+            // حالة الخادم هي المرجع (موافقات الإدارة تتم من الجدول).
+            merged[existingIndex] = walletActivityMergePair(merged[existingIndex], r);
           }
         });
         merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -21200,6 +21524,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       function accountSyncApplyPayload(data) {
         let changed = false;
         let removedForeignRecords = false;
+        let localDataNeedsUpload = false;
         ACCOUNT_USER_SCOPED_LIST_KEYS.forEach((key) => {
           try {
             const localRaw = localStorage.getItem(key);
@@ -21212,7 +21537,11 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             }
           } catch (e) {}
         });
-        const keys = [...ACCOUNT_SYNC_KEYS, ...Object.keys(data).filter((k) => k.indexOf("fxmt-sync-simulation-v2:") === 0)];
+        const allowedKeys = new Set(
+          accountBrowserBackupLiveKeys(accountLocalOwnerName(), currentUser)
+            .filter((key) => key !== ACCOUNT_SYNC_TS_KEY)
+        );
+        const keys = Object.keys(data).filter((key) => allowedKeys.has(key));
         keys.forEach((key) => {
           let remoteRaw = data[key];
           if (remoteRaw === undefined || remoteRaw === null) return;
@@ -21220,8 +21549,12 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             const localRaw = localStorage.getItem(key);
             if (key.indexOf("fxmt-sync-simulation-v2:") === 0) {
               const merged = accountSyncMergeSimulation(localRaw, remoteRaw);
-              if (merged && merged !== localRaw) { localStorage.setItem(key, merged); changed = true; }
-            } else {
+              if (merged && merged !== localRaw) {
+                localStorage.setItem(key, merged);
+                changed = true;
+              }
+              if (merged && merged !== remoteRaw) localDataNeedsUpload = true;
+            } else if (ACCOUNT_SYNC_KEYS.includes(key)) {
               if (ACCOUNT_USER_SCOPED_LIST_KEYS.has(key)) {
                 remoteRaw = accountStampLegacyEntries(remoteRaw, accountLocalOwnerName());
                 const filteredRemote = accountSyncFilterOwnedEntries(remoteRaw);
@@ -21229,22 +21562,50 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
                 if (filteredRemote.removedForeign) removedForeignRecords = true;
               }
               const merged = accountSyncMergeList(localRaw, remoteRaw);
-              if (merged !== (localRaw || "[]")) { localStorage.setItem(key, merged); changed = true; }
+              if (merged !== (localRaw || "[]")) {
+                localStorage.setItem(key, merged);
+                changed = true;
+              }
+              if (merged !== remoteRaw) localDataNeedsUpload = true;
+            } else if (
+              key.indexOf("fxmt-account-notification-events-v1:") === 0 ||
+              key.indexOf("fxmt-account-notifications-read-v1:") === 0
+            ) {
+              const merged = accountBrowserMergeSimpleList(localRaw, remoteRaw);
+              if (merged !== (localRaw || "[]")) {
+                localStorage.setItem(key, merged);
+                changed = true;
+              }
+              if (merged !== remoteRaw) localDataNeedsUpload = true;
+            } else {
+              const remoteValue = String(remoteRaw);
+              if (localRaw === null || localRaw === "") {
+                localStorage.setItem(key, remoteValue);
+                changed = true;
+              } else if (localRaw !== remoteValue) {
+                localDataNeedsUpload = true;
+              }
             }
           } catch (e) {}
         });
         if (changed) {
           try { renderRecentTransactions(); } catch (e) {}
           try { if (typeof renderWalletActivity === "function") renderWalletActivity(); } catch (e) {}
+          accountBrowserBackupWrite();
         }
-        if (removedForeignRecords && typeof pushAccountDataToServer === "function") pushAccountDataToServer();
+        if ((removedForeignRecords || localDataNeedsUpload) &&
+            typeof pushAccountDataToServer === "function") pushAccountDataToServer();
+        return removedForeignRecords || localDataNeedsUpload;
       }
       // رفع كل بيانات الحساب إلى الجدول (مؤجّل قليلاً لتجميع التغييرات المتتالية).
       function pushAccountDataToServer() {
         if (accountPushTimer) window.clearTimeout(accountPushTimer);
         const scheduledUsername = fxUser();
         const scheduledEpoch = accountLocalDataEpoch;
-        if (!scheduledUsername || scheduledUsername.toLowerCase() !== accountLocalOwnerName()) return;
+        if (!scheduledUsername ||
+            scheduledUsername.toLowerCase() !== accountLocalOwnerName() ||
+            accountCloudReadyFor !== scheduledUsername.toLowerCase()) return;
+        accountBrowserBackupWrite(scheduledUsername);
         accountPushTimer = window.setTimeout(async () => {
           accountPushTimer = null;
           const username = fxUser();
@@ -21252,7 +21613,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             !username ||
             scheduledEpoch !== accountLocalDataEpoch ||
             username.toLowerCase() !== scheduledUsername.toLowerCase() ||
-            username.toLowerCase() !== accountLocalOwnerName()
+            username.toLowerCase() !== accountLocalOwnerName() ||
+            accountCloudReadyFor !== username.toLowerCase()
           ) return;
           const ts = Date.now();
           const payload = accountSyncCollectPayload();
@@ -21265,29 +21627,43 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
       // استرجاع كل بيانات الحساب من الجدول عند فتح الحساب على أي جهاز.
       async function pullAccountDataFromServer(username) {
-        if (!username || accountPulling) return;
+        if (!username || accountPulling) return false;
         const requestedUsername = String(username).trim().toLowerCase();
-        if (requestedUsername !== accountLocalOwnerName()) return;
+        if (requestedUsername !== accountLocalOwnerName()) return false;
         const requestId = ++accountPullRequestId;
         const requestEpoch = accountLocalDataEpoch;
         accountPulling = true;
         try {
           const res = await apiGet({ action: "getUserData", username });
           if (requestId !== accountPullRequestId || requestEpoch !== accountLocalDataEpoch ||
-            requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return;
-          if (!responseAccountMatches(res, requestedUsername)) return;
-          if (!res || res.ok === false) return;
+            requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
+          if (!responseAccountMatches(res, requestedUsername)) return false;
+          if (!res || res.ok === false) return false;
           const d = responseData(res) || {};
           const data = d.data || res.data || d.payload || res.payload;
           const serverTs = Number(d.ts || res.ts || 0) || 0;
-          if (!data || typeof data !== "object") return;
+          if (!data || typeof data !== "object" || Array.isArray(data)) return false;
           // سجل التزامن والأرباح من أوراق الجدول المستقلة: يُدمج دائماً
           if (data["fxmt-sync-log-v1"]) accountSyncApplyPayload({ "fxmt-sync-log-v1": data["fxmt-sync-log-v1"] });
-          if (serverTs && serverTs <= accountSyncGetTs()) return;
-          accountSyncApplyPayload(data);
+          // The local timestamp is only a cache hint. It must never block a
+          // cloud read: browser clocks and restored backups can be ahead.
+          const localDataNeedsUpload = accountSyncApplyPayload(data);
+          const restoredLanguage = String(localStorage.getItem("fxmt-wallet-language") || "");
+          if (
+            restoredLanguage &&
+            translations[restoredLanguage] &&
+            restoredLanguage !== currentLanguage
+          ) setCurrentLanguage(restoredLanguage, false);
+          accountCloudReadyFor = requestedUsername;
+          syncBalanceFromServer._lastPull = Date.now();
           if (serverTs) accountSyncSetTs(serverTs);
+          if (localDataNeedsUpload || accountSyncHasLocalOnlyData(data)) {
+            pushAccountDataToServer();
+          }
+          return true;
         } catch (e) {
           console.error("Account data sync failed:", e);
+          return false;
         } finally {
           if (requestId === accountPullRequestId) accountPulling = false;
         }
@@ -22208,7 +22584,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   const utc=ts=>new Date(ts).toISOString().replace('T',' ').slice(0,19)+' UTC';
   function accountKey(){const u=user();return 'fxmt-sync-simulation-v2:'+encodeURIComponent(String(u?.id||u?.username||'guest'));}
   function read(){const nextKey=accountKey();if(nextKey!==key){key=nextKey;state=E.empty();}try{const raw=localStorage.getItem(key);if(raw){const saved=JSON.parse(raw);if(E.valid(saved))state=saved;else state=E.empty();}}catch(err){state=memory[key]||state;}}
-  function save(){memory[key]=state;try{localStorage.setItem(key,JSON.stringify(state));}catch(err){el('syncError').textContent='الحفظ المحلي غير متاح؛ ستبقى البيانات لهذه الجلسة فقط.';}}
+  function save(){memory[key]=state;try{localStorage.setItem(key,JSON.stringify(state));try{if(typeof pushAccountDataToServer==='function')pushAccountDataToServer();}catch(syncError){}}catch(err){el('syncError').textContent='الحفظ المحلي غير متاح؛ ستبقى البيانات لهذه الجلسة فقط.';}}
   function readLog(){try{const l=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');return Array.isArray(l)?l:[];}catch(e){return [];}}
   function writeLog(entry){const log=readLog();if(log.some(r=>r.id===entry.id))return;log.unshift(entry);try{localStorage.setItem(LOG_KEY,JSON.stringify(log.slice(0,300)));}catch(e){}
     try{if(typeof pushAccountDataToServer==='function')pushAccountDataToServer();}catch(e){}
