@@ -21693,6 +21693,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           accountCloudReadyFor = requestedUsername;
           syncBalanceFromServer._lastPull = Date.now();
           if (serverTs) accountSyncSetTs(serverTs);
+          accountBrowserBackupWrite(requestedUsername);
+          try { updateCurrentWalletView(); } catch (e) {}
           if (localDataNeedsUpload || accountSyncHasLocalOnlyData(data)) {
             pushAccountDataToServer();
           }
@@ -21792,6 +21794,14 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             balanceSyncUser = "";
           }
         }
+      }
+      if (!window.__fxAccountOnlineSyncBound) {
+        window.__fxAccountOnlineSyncBound = true;
+        window.addEventListener("online", () => {
+          if (!currentUser) return;
+          resetAccountRefreshThrottle();
+          refreshCurrentUser(true);
+        });
       }
       // Identity verification UI — inserted in the main app scope to use the authenticated API session.
       const ivLayer = document.getElementById('identityVerificationLayer');
@@ -22644,6 +22654,11 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
     try{if(typeof apiPost==='function')apiPost({action:'saveSyncLog',username:entry.username,record:entry});}catch(e){}}
   function currentDay(now){return state.days.find(d=>d.day===E.localDay(now));}
   globalThis.fxGetTodaySyncProfitCents=()=>{read();const day=currentDay(Date.now());return day?day.trades.filter(t=>t.status==='completed').reduce((n,t)=>n+t.profitCents,0):0;};
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>{try{if(typeof updateCurrentWalletView==='function')updateCurrentWalletView();}catch(e){}},{once:true});
+  }else{
+    try{if(typeof updateCurrentWalletView==='function')updateCurrentWalletView();}catch(e){}
+  }
   function duration(ms){const s=Math.max(0,Math.ceil(ms/1000));return [Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');}
 
   /* Credit completed trade profits to the real wallet balance across the platform and store a detailed log. */
