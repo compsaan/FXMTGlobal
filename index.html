@@ -15511,12 +15511,14 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       async function apiRequest(payload, options = {}) {
         let response;
         let responseText;
+        const slowerActions = ["restoreSession", "profit_code", "addProfit", "saveUserData"];
+        const defaultTimeoutMs = slowerActions.includes(String(payload?.action || "")) ? 45000 : 25000;
         const requestController = !options.signal && typeof AbortController === "function"
           ? new AbortController()
           : null;
         const requestSignal = options.signal || requestController?.signal;
         const requestTimeout = requestController
-          ? window.setTimeout(() => requestController.abort(), Number(options.timeoutMs) || 20000)
+          ? window.setTimeout(() => requestController.abort(), Number(options.timeoutMs) || defaultTimeoutMs)
           : null;
         const requestSessionToken = String(payload.sessionToken || currentSessionToken || "");
         const requestPayload = requestSessionToken
@@ -16003,13 +16005,18 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }, 20000);
         const username = String(currentUser?.username || localStorage.getItem("username") || "").trim();
         if (username) {
-          pullAccountDataFromServer(username).then((loaded) => {
+          const cloudLoad = pullAccountDataFromServer(username);
+          // The balance is needed immediately for the wallet screen. Do not
+          // make it wait for the larger account-history/cloud-backup response.
+          syncBalanceFromServer._lastPull = Date.now();
+          syncBalanceFromServer();
+          cloudLoad.then((loaded) => {
             if (!loaded) {
+              syncBalanceFromServer._lastPull = 0;
               showToast(currentLanguage === "ar"
                 ? "تعذر تحميل بيانات الحساب من السحابة. تحقق من الاتصال ثم اسحب للتحديث."
                 : "Could not load account data from the cloud. Check your connection and pull to refresh.");
             }
-            syncBalanceFromServer();
           });
         } else {
           syncBalanceFromServer();
@@ -16440,7 +16447,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               const error = new Error("انتهت مهلة التحقق من الجلسة.");
               error.code = "session_timeout";
               reject(error);
-            }, 20000);
+          }, 45000);
           });
           const response = await Promise.race([request, timeout]);
           const restoredUser = ensureAuthenticatedIdentity(readUserFromResponse(response), "");
@@ -17907,7 +17914,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         const [whole, cents] = formattedBalanceAmount.split(".");
         const formattedBalance = balanceKnown ? `$ ${whole}<span class="cents">.${cents}</span>` : "—";
         const availableAmount = balanceVerified ? `${formattedAmount} USDT` : "—";
-        const displayAvailableAmount = balanceVerified ? `${formattedBalanceAmount} USDT` : "—";
+        // Read-only wallet totals may use the last saved balance while offline.
+        // Spend/transfer actions below remain unavailable until the server verifies it.
+        const displayAvailableAmount = balanceKnown ? `${formattedBalanceAmount} USDT` : "—";
         visibleTotalBalance = formattedBalance;
         visibleWalletBalance = formattedBalance;
         const isHidden = balanceVisibilityButton.getAttribute("aria-pressed") === "true";
@@ -21190,6 +21199,33 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           return false;
         }
       }
+      function accountBrowserBackupWriteKey(key, username = "", userOverride = null) {
+        const normalized = String(
+          username || userOverride?.username || currentUser?.username || localStorage.getItem("username") || ""
+        ).trim().toLowerCase();
+        if (!normalized || accountLocalOwnerName() !== normalized || !key) return false;
+        const sourceUser = [userOverride, currentUser, readCachedUser()].find((candidate) =>
+          String(candidate?.username || "").trim().toLowerCase() === normalized
+        ) || null;
+        if (!accountBrowserBackupLiveKeys(normalized, sourceUser).includes(key)) return false;
+        try {
+          const backup = accountBrowserBackupRead(normalized);
+          if (!backup) return accountBrowserBackupWrite(normalized, sourceUser);
+          const data = backup.data && typeof backup.data === "object" ? { ...backup.data } : {};
+          const raw = localStorage.getItem(key);
+          if (raw === null) delete data[key];
+          else data[key] = raw;
+          backup.version = 1;
+          backup.username = normalized;
+          backup.savedAt = Date.now();
+          backup.user = accountBrowserSafeUser(sourceUser) || backup.user || null;
+          backup.data = data;
+          localStorage.setItem(accountBrowserBackupKey(normalized), JSON.stringify(backup));
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
       function accountBrowserMergeSimpleList(localRaw, backupRaw) {
         let local = [], saved = [];
         try { local = JSON.parse(localRaw || "[]"); } catch (e) {}
@@ -21634,7 +21670,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         const requestEpoch = accountLocalDataEpoch;
         accountPulling = true;
         try {
-          const res = await apiGet({ action: "getUserData", username });
+          const res = await apiGet({ action: "getUserData", username }, { timeoutMs: 45000 });
           if (requestId !== accountPullRequestId || requestEpoch !== accountLocalDataEpoch ||
             requestedUsername !== String(fxUser() || "").trim().toLowerCase()) return false;
           if (!responseAccountMatches(res, requestedUsername)) return false;
@@ -21689,7 +21725,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               syncBalanceFromServer._lastPull = now;
               pullAccountDataFromServer(username);
             }
-            const data = await apiGet({ action: "getBalance", username });
+            const data = await apiGet({ action: "getBalance", username }, { timeoutMs: 55000 });
             if (
               sequence !== balanceSyncSequence || !currentUser ||
               String(currentUser.username || "").toLowerCase() !== String(username).toLowerCase()
@@ -22584,7 +22620,24 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   const utc=ts=>new Date(ts).toISOString().replace('T',' ').slice(0,19)+' UTC';
   function accountKey(){const u=user();return 'fxmt-sync-simulation-v2:'+encodeURIComponent(String(u?.id||u?.username||'guest'));}
   function read(){const nextKey=accountKey();if(nextKey!==key){key=nextKey;state=E.empty();}try{const raw=localStorage.getItem(key);if(raw){const saved=JSON.parse(raw);if(E.valid(saved))state=saved;else state=E.empty();}}catch(err){state=memory[key]||state;}}
-  function save(){memory[key]=state;try{localStorage.setItem(key,JSON.stringify(state));try{if(typeof pushAccountDataToServer==='function')pushAccountDataToServer();}catch(syncError){}}catch(err){el('syncError').textContent='الحفظ المحلي غير متاح؛ ستبقى البيانات لهذه الجلسة فقط.';}}
+  function save(){
+    memory[key]=state;
+    try{
+      localStorage.setItem(key,JSON.stringify(state));
+      const ownerName=user()?.username||localStorage.getItem('username')||'';
+      let backupSaved=false;
+      try{
+        if(typeof accountBrowserBackupWriteKey==='function')backupSaved=accountBrowserBackupWriteKey(key,ownerName);
+        else if(typeof accountBrowserBackupWrite==='function')backupSaved=accountBrowserBackupWrite(ownerName);
+      }catch(backupError){}
+      if(!backupSaved){
+        const backupNotice=el('syncError');
+        if(backupNotice)backupNotice.textContent='حُفظت البيانات الحالية، لكن تعذر تحديث النسخة الاحتياطية المحلية.';
+      }
+      try{if(typeof updateCurrentWalletView==='function')updateCurrentWalletView();}catch(viewError){}
+      try{if(typeof pushAccountDataToServer==='function')pushAccountDataToServer();}catch(syncError){}
+    }catch(err){el('syncError').textContent='الحفظ المحلي غير متاح؛ ستبقى البيانات لهذه الجلسة فقط.';}
+  }
   function readLog(){try{const l=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');return Array.isArray(l)?l:[];}catch(e){return [];}}
   function writeLog(entry){const log=readLog();if(log.some(r=>r.id===entry.id))return;log.unshift(entry);try{localStorage.setItem(LOG_KEY,JSON.stringify(log.slice(0,300)));}catch(e){}
     try{if(typeof pushAccountDataToServer==='function')pushAccountDataToServer();}catch(e){}
