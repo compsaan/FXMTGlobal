@@ -91,6 +91,16 @@
       referrerpolicy="no-referrer"
     />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+    <script>
+      window.fxmtRegistrationCaptchaToken = "";
+      window.fxmtOnRegistrationCaptchaSuccess = function (token) {
+        window.fxmtRegistrationCaptchaToken = String(token || "");
+      };
+      window.fxmtOnRegistrationCaptchaExpired = function () {
+        window.fxmtRegistrationCaptchaToken = "";
+      };
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
       :root {
         --ink: #f9faff;
@@ -3045,6 +3055,11 @@
       .auth-field {
         display: grid;
         gap: 6px;
+      }
+
+      .register-captcha-field {
+        min-height: 66px;
+        justify-items: start;
       }
 
       .auth-field label {
@@ -10576,6 +10591,21 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
                 <input id="registerEmail" name="email" type="email" dir="ltr" placeholder="name@example.com" autocomplete="email" required />
               </div>
 
+              <!-- استبدل قيمة data-sitekey بمفتاح الموقع العام من Cloudflare Turnstile. -->
+              <div class="auth-field register-captcha-field">
+                <div
+                  id="registerCaptcha"
+                  class="cf-turnstile"
+                  data-sitekey="REPLACE_WITH_TURNSTILE_SITE_KEY"
+                  data-action="send_register_code"
+                  data-theme="dark"
+                  data-language="auto"
+                  data-callback="fxmtOnRegistrationCaptchaSuccess"
+                  data-expired-callback="fxmtOnRegistrationCaptchaExpired"
+                  data-error-callback="fxmtOnRegistrationCaptchaExpired"
+                ></div>
+              </div>
+
               <div class="auth-field verification-code-field" id="registerCodeField">
                 <label for="registerCode" data-i18n="verificationCodeLabel">Email verification code</label>
                 <div class="verification-code-row">
@@ -10870,7 +10900,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               <span class="action-label" data-i18n="markets">Markets</span>
             </button>
             <button class="action" data-action="identity" type="button">
-              <span class="action-icon"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></span>
+              <span class="action-icon"><i class="fa-solid fa-id-card" aria-hidden="true"></i></span>
               <span class="action-label" data-i18n="identityVerification">Identity verification</span>
             </button>
             <button class="action" data-action="devices" type="button">
@@ -10928,8 +10958,17 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             <i class="account-menu-arrow fa-solid fa-chevron-left" aria-hidden="true"></i>
           </button>
 
-          <button class="account-menu-item" type="button" data-account-action="identity">
+          <button class="account-menu-item" type="button" data-account-action="security">
             <span class="account-menu-icon"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></span>
+            <span class="account-menu-copy">
+              <strong data-i18n="securityCenter">مركز الأمان</strong>
+              <small data-i18n="securityCenterDescription">إدارة كلمة المرور وطرق التحقق الإضافية</small>
+            </span>
+            <i class="account-menu-arrow fa-solid fa-chevron-left" aria-hidden="true"></i>
+          </button>
+
+          <button class="account-menu-item" type="button" data-account-action="identity">
+            <span class="account-menu-icon"><i class="fa-solid fa-id-card" aria-hidden="true"></i></span>
             <span class="account-menu-copy">
               <strong data-i18n="identityVerification">التحقق من الهوية</strong>
               <small data-i18n="identityVerificationDescription">أكمل التحقق لفتح جميع مزايا المنصة</small>
@@ -11156,6 +11195,88 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
                 </button>
             </div>
           </div>
+        </section>
+
+        <section class="account-security-view" id="accountSecurityView" hidden aria-labelledby="accountSecurityTitle">
+          <header class="account-personal-header">
+            <button class="account-personal-back" id="accountSecurityBack" type="button" data-i18n-aria="personalDataBack" aria-label="العودة إلى الحساب">
+              <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </button>
+            <div>
+              <h2 id="accountSecurityTitle" data-i18n="securityCenterTitle">مركز الأمان</h2>
+              <p data-i18n="securityCenterPageDescription">تحكّم بكلمة المرور ووسائل حماية حسابك.</p>
+            </div>
+          </header>
+
+          <section class="account-security-panel account-security-panel--password" aria-labelledby="securityPasswordHeading">
+            <button class="account-security-panel-trigger" id="accountPasswordResetOpen" type="button">
+              <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-key"></i></span>
+              <span class="account-security-panel-trigger-copy">
+                <strong id="securityPasswordHeading" data-i18n="securityPasswordTitle">إعادة تعيين كلمة المرور</strong>
+                <small data-i18n="securityPasswordCollapsedDescription">غيّر كلمة المرور باستخدام رمز يُرسل إلى بريدك الإلكتروني.</small>
+              </span>
+              <i class="account-security-trigger-arrow fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+          </section>
+
+          <section class="account-security-panel account-security-panel--authenticator" aria-labelledby="securityAuthenticatorHeading">
+            <div class="account-security-panel-heading">
+              <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
+              <div>
+                <h3 id="securityAuthenticatorHeading" data-i18n="securityAuthenticatorTitle">ربط تطبيق المصادقة</h3>
+                <p data-i18n="securityAuthenticatorDescription">استخدم تطبيق مصادقة لإضافة طبقة حماية إلى حسابك.</p>
+              </div>
+            </div>
+            <div class="account-security-auth-status">
+              <span class="account-security-status-dot" aria-hidden="true"></span>
+              <span data-i18n="securityAuthenticatorNotLinked">غير مرتبط</span>
+            </div>
+            <p class="account-security-note" data-i18n="securityAuthenticatorNote">ربط تطبيق المصادقة غير مفعّل في الخادم الحالي؛ لن يتم إنشاء إعداد أو حفظه حتى يتوفر دعم التحقق الآمن.</p>
+            <button class="account-security-secondary" id="accountSecurityAuthenticatorButton" type="button" data-i18n="securityAuthenticatorSetup">إعداد تطبيق المصادقة</button>
+          </section>
+        </section>
+
+        <section class="account-password-reset-view" id="accountPasswordResetView" hidden aria-labelledby="accountPasswordResetPageTitle">
+          <header class="account-personal-header">
+            <button class="account-personal-back" id="accountPasswordResetBack" type="button" data-i18n-aria="personalDataBack" aria-label="العودة إلى الحساب">
+              <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </button>
+            <div>
+              <h2 id="accountPasswordResetPageTitle" data-i18n="securityPasswordTitle">إعادة تعيين كلمة المرور</h2>
+              <p data-i18n="securityPasswordDescription">اختر كلمة مرور جديدة، ثم أدخل رمز التأكيد المرسل إلى بريدك الإلكتروني.</p>
+            </div>
+          </header>
+          <section class="account-security-panel" aria-labelledby="accountPasswordResetPageTitle">
+            <form class="account-security-form" id="accountPasswordResetForm" novalidate>
+              <div class="account-security-field">
+                <label for="accountSecurityNewPassword" data-i18n="securityNewPasswordLabel">أدخل كلمة المرور الجديدة</label>
+                  <div class="account-security-password-wrap">
+                    <input id="accountSecurityNewPassword" name="newPassword" type="password" dir="ltr" autocomplete="new-password" minlength="6" data-i18n-placeholder="securityNewPasswordPlaceholder" placeholder="6 أحرف على الأقل" required />
+                    <button class="account-security-password-toggle" type="button" data-password-target="accountSecurityNewPassword" data-i18n-aria="showPassword" aria-label="إظهار كلمة المرور">
+                      <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                    </button>
+                  </div>
+              </div>
+              <div class="account-security-field">
+                <label for="accountSecurityConfirmPassword" data-i18n="securityConfirmPasswordLabel">تأكيد كلمة المرور الجديدة</label>
+                  <div class="account-security-password-wrap">
+                    <input id="accountSecurityConfirmPassword" name="confirmPassword" type="password" dir="ltr" autocomplete="new-password" data-i18n-placeholder="securityConfirmPasswordPlaceholder" placeholder="أعد كتابة كلمة المرور" required />
+                    <button class="account-security-password-toggle" type="button" data-password-target="accountSecurityConfirmPassword" data-i18n-aria="showPassword" aria-label="إظهار كلمة المرور">
+                      <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                    </button>
+                  </div>
+              </div>
+              <div class="account-security-field" id="accountSecurityCodeField" hidden>
+                <label for="accountSecurityCode" data-i18n="securityVerificationCodeLabel">رمز التحقق المرسل إلى البريد الإلكتروني</label>
+                <input id="accountSecurityCode" name="verificationCode" type="text" dir="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" data-i18n-placeholder="securityVerificationCodePlaceholder" placeholder="أدخل الرمز المكوّن من 6 أرقام" />
+              </div>
+              <p class="account-security-status" id="accountSecurityResetStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+              <div class="account-security-actions">
+                <button class="account-security-primary" id="accountSecurityResetSubmit" type="submit" data-i18n="securityConfirmButton">تأكيد</button>
+                <button class="account-security-secondary" id="accountSecurityResendCode" type="button" data-i18n="securityResendCode" hidden>إعادة إرسال الرمز</button>
+              </div>
+            </form>
+          </section>
         </section>
 
         <p class="account-drawer-footnote" data-i18n="accountSecurityNote">حسابك محمي بتشفير متقدم وإشعارات أمان فورية.</p>
@@ -12326,7 +12447,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
 <section id="identityVerificationLayer" hidden aria-hidden="true" dir="rtl">
   <div class="iv-dialog" role="dialog" aria-modal="true" aria-labelledby="ivTitle" tabindex="-1">
     <header class="iv-header">
-      <span class="iv-mark" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
+      <span class="iv-mark" aria-hidden="true"><i class="fa-solid fa-id-card"></i></span>
       <div class="iv-heading"><h2 id="ivTitle" data-iv-copy="title">التحقق من الهوية</h2><p id="ivIntro" data-iv-copy="intro">قدّم بيانات مطابقة لوثيقتك الرسمية. سيُراجع الطلب يدويًا قبل اعتماد الحساب.</p></div>
       <button class="iv-close" id="ivClose" type="button" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button>
     </header>
@@ -12703,6 +12824,34 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         accountPreferences: "Account and settings",
         personalData: "Personal data",
         personalDataDescription: "Name, email and profile information",
+        securityCenter: "Security center",
+        securityCenterDescription: "Manage your password and extra account protection",
+        securityCenterTitle: "Security center",
+        securityCenterPageDescription: "Manage your password and account protection methods.",
+        securityPasswordTitle: "Reset password",
+        securityPasswordDescription: "Choose a new password, then enter the verification code sent to your email.",
+        securityPasswordCollapsedDescription: "Change your password using a code sent to your email.",
+        securityNewPasswordLabel: "Enter your new password",
+        securityNewPasswordPlaceholder: "At least 6 characters",
+        securityConfirmPasswordLabel: "Confirm your new password",
+        securityConfirmPasswordPlaceholder: "Re-enter your password",
+        securityVerificationCodeLabel: "Verification code sent to your email",
+        securityVerificationCodePlaceholder: "Enter the 6-digit code",
+        securityConfirmButton: "Confirm",
+        securityResendCode: "Resend",
+        securityVerifyAndUpdate: "Reset password",
+        securityCodeSent: "If the email is registered and eligible, a verification code has been sent. Enter it here.",
+        securityMissingIdentity: "We couldn't identify the signed-in account. Sign in again and retry.",
+        securityPasswordTooShort: "Use at least 6 characters for the new password.",
+        securityPasswordMismatch: "The passwords do not match.",
+        securityInvalidCode: "Enter the 6-digit verification code sent to your email.",
+        securityPasswordUpdated: "Your password was updated. Sign in again with your new password.",
+        securityAuthenticatorTitle: "Authenticator app",
+        securityAuthenticatorDescription: "Use an authenticator app to add another layer of protection.",
+        securityAuthenticatorNotLinked: "Not connected",
+        securityAuthenticatorNote: "Authenticator linking isn't enabled by the current server. Setup and verification will remain unavailable until secure server support is added.",
+        securityAuthenticatorSetup: "Set up authenticator app",
+        securityAuthenticatorUnavailableMessage: "Authenticator setup isn't available on the current server yet.",
         identityVerification: "Identity verification",
         identityVerificationDescription: "Complete verification to unlock all platform features",
         referralProgram: "Invite & earn",
@@ -12786,6 +12935,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         personalDataBack: "Back to account",
         personalDataUnavailable: "Not available",
         personalDataSelected: "Personal data section selected",
+        securityCenterSelected: "Security center opened",
         identityVerificationSelected: "Identity verification is ready to be completed",
         activeDevicesSelected: "You are signed in on this device",
         termsSelected: "Terms and conditions selected",
@@ -12864,6 +13014,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         emailTooLong: "Email address must not exceed 254 characters.",
         invalidLoginUsername: "Enter a valid username (3–20 letters, numbers, _ or .).",
         invalidEmail: "Enter a valid email such as name@example.com.",
+        captchaRequired: "Complete the security check before requesting an email code.",
         usernameRule: "Username must be 3–20 letters, numbers, _ or .",
         passwordRule: "Password needs at least 6 characters, one letter and one number.",
         passwordMismatch: "Passwords do not match.",
@@ -12937,6 +13088,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           verificationCodeLabel: "رمز التحقق المرسل إلى البريد",
           sendVerificationCode: "إرسال رمز التحقق",
           sendingVerificationCode: "جارٍ إرسال الرمز…",
+           captchaRequired: "أكمل اختبار التحقق الأمني قبل طلب رمز البريد.",
         codeSentButton: "تم الإرسال",
         resendCodeButton: "إعادة إرسال الرمز",
         sendCodeFirst: "أرسل رمز التحقق من الزر بجانب الخانة قبل إنشاء الحساب.",
@@ -13033,6 +13185,34 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
            accountPreferences: "الإعدادات والحساب",
            personalData: "البيانات الشخصية",
            personalDataDescription: "الاسم، البريد الإلكتروني وبيانات الملف الشخصي",
+           securityCenter: "مركز الأمان",
+           securityCenterDescription: "إدارة كلمة المرور وطرق التحقق الإضافية",
+           securityCenterTitle: "مركز الأمان",
+           securityCenterPageDescription: "تحكّم بكلمة المرور ووسائل حماية حسابك.",
+           securityPasswordTitle: "إعادة تعيين كلمة المرور",
+           securityPasswordDescription: "اختر كلمة مرور جديدة، ثم أدخل رمز التأكيد المرسل إلى بريدك الإلكتروني.",
+           securityPasswordCollapsedDescription: "غيّر كلمة المرور باستخدام رمز يُرسل إلى بريدك الإلكتروني.",
+           securityNewPasswordLabel: "أدخل كلمة المرور الجديدة",
+           securityNewPasswordPlaceholder: "6 أحرف على الأقل",
+           securityConfirmPasswordLabel: "تأكيد كلمة المرور الجديدة",
+           securityConfirmPasswordPlaceholder: "أعد كتابة كلمة المرور",
+           securityVerificationCodeLabel: "رمز التحقق المرسل إلى البريد الإلكتروني",
+           securityVerificationCodePlaceholder: "أدخل الرمز المكوّن من 6 أرقام",
+           securityConfirmButton: "تأكيد",
+           securityResendCode: "إعادة إرسال",
+           securityVerifyAndUpdate: "إعادة تعيين",
+           securityCodeSent: "إذا كان البريد مسجلاً ومتاحاً، أرسلنا رمز تحقق إليه. أدخله هنا.",
+           securityMissingIdentity: "تعذر تحديد الحساب الحالي. سجّل الدخول مجدداً ثم أعد المحاولة.",
+           securityPasswordTooShort: "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.",
+           securityPasswordMismatch: "كلمتا المرور غير متطابقتين.",
+           securityInvalidCode: "أدخل رمز التحقق المكوّن من 6 أرقام والمرسل إلى بريدك.",
+           securityPasswordUpdated: "تم تحديث كلمة المرور. سجّل الدخول مجدداً باستخدام كلمة المرور الجديدة.",
+           securityAuthenticatorTitle: "تطبيق المصادقة",
+           securityAuthenticatorDescription: "استخدم تطبيق مصادقة لإضافة طبقة حماية إلى حسابك.",
+           securityAuthenticatorNotLinked: "غير مرتبط",
+           securityAuthenticatorNote: "ربط تطبيق المصادقة غير مفعّل في الخادم الحالي؛ لن يتم إنشاء إعداد أو حفظه حتى يتوفر دعم التحقق الآمن.",
+           securityAuthenticatorSetup: "إعداد تطبيق المصادقة",
+           securityAuthenticatorUnavailableMessage: "إعداد تطبيق المصادقة غير متاح حالياً على الخادم.",
            identityVerification: "التحقق من الهوية",
            identityVerificationDescription: "أكمل التحقق لفتح جميع مزايا المنصة",
            referralProgram: "الدعوات والمكافآت",
@@ -13116,6 +13296,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
            personalDataBack: "العودة إلى الحساب",
            personalDataUnavailable: "غير متاح",
            personalDataSelected: "تم اختيار قسم البيانات الشخصية",
+           securityCenterSelected: "تم فتح مركز الأمان",
            identityVerificationSelected: "قسم التحقق من الهوية جاهز للإكمال",
            activeDevicesSelected: "أنت مسجل الدخول على هذا الجهاز",
            termsSelected: "تم اختيار الشروط والأحكام",
@@ -14593,8 +14774,14 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (!wasOpen) return;
         accountDrawer.classList.remove("is-open");
         accountDrawer.classList.remove("is-personal-open");
+        accountDrawer.classList.remove("is-security-open");
+        accountDrawer.classList.remove("is-password-reset-open");
         const personalView = document.getElementById("accountPersonalView");
         if (personalView) personalView.hidden = true;
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = true;
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        if (passwordResetView) passwordResetView.hidden = true;
         accountDrawerBackdrop.classList.remove("is-visible");
         accountDrawer.setAttribute("aria-hidden", "true");
         setActiveNav("Home");
@@ -16510,7 +16697,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           const shouldShow = input.type === "password";
           input.type = shouldShow ? "text" : "password";
           icon.className = shouldShow ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
-          button.setAttribute("aria-label", shouldShow ? t("hidePassword") : t("showPassword"));
+          const labelKey = shouldShow ? "hidePassword" : "showPassword";
+          button.dataset.i18nAria = labelKey;
+          button.setAttribute("aria-label", t(labelKey));
         });
       });
 
@@ -16586,11 +16775,16 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           reportAuthIssue(registerStatus, t("invalidEmail"), [registerEmailInput]);
           return;
         }
+        const captchaToken = String(window.fxmtRegistrationCaptchaToken || "").trim();
+        if (!captchaToken) {
+          setAuthStatus(registerStatus, t("captchaRequired"));
+          return;
+        }
         registerSendCodeButton.disabled = true;
         registerSendCodeButton.dataset.i18n = "sendingVerificationCode";
         registerSendCodeButton.textContent = t("sendingVerificationCode");
         try {
-          const result = await sendRegisterCode(username, email);
+          const result = await sendRegisterCode(username, email, captchaToken);
           if (!result || result.ok !== true) {
             if (Number(result?.waitSeconds) > 0) {
               registrationCodeSent = true;
@@ -16611,6 +16805,11 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             registerSendCodeButton.disabled = false;
             registerSendCodeButton.dataset.i18n = "sendVerificationCode";
             registerSendCodeButton.textContent = t("sendVerificationCode");
+          }
+        } finally {
+          window.fxmtRegistrationCaptchaToken = "";
+          if (window.turnstile && typeof window.turnstile.reset === "function") {
+            try { window.turnstile.reset(); } catch (captchaResetError) {}
           }
         }
       }
@@ -17398,6 +17597,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
 
       const accountActionToastKeys = {
         personal: "personalDataSelected",
+        security: "securityCenterSelected",
         identity: "identityVerificationSelected",
         devices: "activeDevicesSelected",
         terms: "termsSelected",
@@ -17442,11 +17642,48 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         setValue("accountPersonalUid", displayedUid);
 
         const personalView = document.getElementById("accountPersonalView");
+        accountDrawer.classList.remove("is-security-open");
+        accountDrawer.classList.remove("is-password-reset-open");
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = true;
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        if (passwordResetView) passwordResetView.hidden = true;
         accountDrawer.classList.add("is-personal-open");
         if (personalView) personalView.hidden = false;
         document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
         document.getElementById("accountPersonalBack")?.focus();
         refreshPersonalAccountDetails();
+      }
+
+      function openAccountSecurity() {
+        const personalView = document.getElementById("accountPersonalView");
+        if (personalView) personalView.hidden = true;
+        const securityView = document.getElementById("accountSecurityView");
+        accountDrawer.classList.remove("is-personal-open");
+        accountDrawer.classList.remove("is-password-reset-open");
+        accountDrawer.classList.add("is-security-open");
+        if (securityView) securityView.hidden = false;
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        if (passwordResetView) passwordResetView.hidden = true;
+        const submitKey = accountSecurityCodeRequested ? "securityVerifyAndUpdate" : "securityConfirmButton";
+        accountSecurityResetSubmit.dataset.i18n = submitKey;
+        accountSecurityResetSubmit.textContent = t(submitKey);
+        document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("accountSecurityBack")?.focus();
+      }
+
+      function openAccountPasswordReset() {
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = true;
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        accountDrawer.classList.remove("is-security-open");
+        accountDrawer.classList.add("is-password-reset-open");
+        if (passwordResetView) passwordResetView.hidden = false;
+        const submitKey = accountSecurityCodeRequested ? "securityVerifyAndUpdate" : "securityConfirmButton";
+        accountSecurityResetSubmit.dataset.i18n = submitKey;
+        accountSecurityResetSubmit.textContent = t(submitKey);
+        document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("accountSecurityNewPassword")?.focus();
       }
 
       async function refreshPersonalAccountDetails() {
@@ -17498,6 +17735,145 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         document.querySelector('[data-account-action="personal"]')?.focus();
       });
 
+      document.getElementById("accountSecurityBack")?.addEventListener("click", () => {
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = true;
+        accountDrawer.classList.remove("is-security-open");
+        document.querySelector('[data-account-action="security"]')?.focus();
+      });
+
+      document.getElementById("accountPasswordResetOpen")?.addEventListener("click", openAccountPasswordReset);
+
+      document.getElementById("accountPasswordResetBack")?.addEventListener("click", () => {
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        if (passwordResetView) passwordResetView.hidden = true;
+        accountDrawer.classList.remove("is-password-reset-open");
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = false;
+        accountDrawer.classList.add("is-security-open");
+        document.querySelector("#accountPasswordResetOpen")?.focus();
+      });
+
+      const accountPasswordResetForm = document.getElementById("accountPasswordResetForm");
+      const accountSecurityNewPassword = document.getElementById("accountSecurityNewPassword");
+      const accountSecurityConfirmPassword = document.getElementById("accountSecurityConfirmPassword");
+      const accountSecurityCodeField = document.getElementById("accountSecurityCodeField");
+      const accountSecurityCode = document.getElementById("accountSecurityCode");
+      const accountSecurityResetStatus = document.getElementById("accountSecurityResetStatus");
+      const accountSecurityResetSubmit = document.getElementById("accountSecurityResetSubmit");
+      const accountSecurityResendCode = document.getElementById("accountSecurityResendCode");
+      let accountSecurityCodeRequested = false;
+
+      function setAccountSecurityResetStatus(message, isSuccess = false) {
+        accountSecurityResetStatus.textContent = message || "";
+        accountSecurityResetStatus.classList.toggle("is-success", Boolean(isSuccess));
+      }
+
+      function accountSecurityIdentifier() {
+        return String(currentUser?.username || currentUser?.email || fxUser() ||
+          localStorage.getItem("username") || localStorage.getItem("email") || "").trim();
+      }
+
+      accountPasswordResetForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        setAccountSecurityResetStatus("");
+        const identifier = accountSecurityIdentifier();
+        const newPassword = accountSecurityNewPassword.value;
+        const confirmPassword = accountSecurityConfirmPassword.value;
+        if (!currentSessionToken || !identifier) {
+          setAccountSecurityResetStatus(t("securityMissingIdentity"));
+          return;
+        }
+        if (newPassword.length < 6) {
+          setAccountSecurityResetStatus(t("securityPasswordTooShort"));
+          accountSecurityNewPassword.focus();
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          setAccountSecurityResetStatus(t("securityPasswordMismatch"));
+          accountSecurityConfirmPassword.focus();
+          return;
+        }
+
+        accountSecurityResetSubmit.disabled = true;
+        try {
+          if (!accountSecurityCodeRequested) {
+            const result = await requestPasswordReset(identifier);
+            if (!result || result.ok !== true) {
+              throw new Error(result?.message || t("securityCodeSent"));
+            }
+            accountSecurityCodeRequested = true;
+            accountSecurityCodeField.hidden = false;
+            accountSecurityResendCode.hidden = false;
+            accountSecurityResetSubmit.dataset.i18n = "securityVerifyAndUpdate";
+            accountSecurityResetSubmit.textContent = t("securityVerifyAndUpdate");
+            setAccountSecurityResetStatus(t("securityCodeSent"), true);
+            accountSecurityCode.focus();
+            return;
+          }
+
+          const code = accountSecurityCode.value.trim();
+          if (!/^\d{6}$/.test(code)) {
+            setAccountSecurityResetStatus(t("securityInvalidCode"));
+            accountSecurityCode.focus();
+            return;
+          }
+          const result = await completePasswordReset(identifier, code, newPassword, confirmPassword);
+          if (!result || result.ok !== true) {
+            throw new Error(result?.message || t("securityPasswordMismatch"));
+          }
+          recordAccountNotificationEvent("security", {
+            identity: identifier,
+            titleKey: "accountNotificationSecurityTitle",
+            detailKey: "accountNotificationPasswordResetDetail"
+          });
+
+          accountSecurityCodeRequested = false;
+          accountPasswordResetForm.reset();
+          accountSecurityCodeField.hidden = true;
+          accountSecurityResendCode.hidden = true;
+          closeAccountDrawer();
+          clearCurrentAuthSession();
+          showWelcomeIntro();
+          welcomeScreen.classList.remove("is-hidden");
+          openAuthView(loginView);
+          loginUsername.value = identifier;
+          loginPassword.value = newPassword;
+          loginUsername.classList.add("autofill-highlight");
+          loginPassword.classList.add("autofill-highlight");
+          setAuthStatus(loginStatus, t("securityPasswordUpdated"), true);
+          window.setTimeout(() => loginPassword.focus(), 80);
+        } catch (error) {
+          setAccountSecurityResetStatus(error.message || t("securityPasswordMismatch"));
+        } finally {
+          accountSecurityResetSubmit.disabled = false;
+        }
+      });
+
+      accountSecurityResendCode?.addEventListener("click", async () => {
+        const identifier = accountSecurityIdentifier();
+        if (!currentSessionToken || !identifier) {
+          setAccountSecurityResetStatus(t("securityMissingIdentity"));
+          return;
+        }
+        accountSecurityResendCode.disabled = true;
+        try {
+          const result = await requestPasswordReset(identifier);
+          if (!result || result.ok !== true) {
+            throw new Error(result?.message || t("securityCodeSent"));
+          }
+          setAccountSecurityResetStatus(t("securityCodeSent"), true);
+        } catch (error) {
+          setAccountSecurityResetStatus(error.message || t("securityCodeSent"));
+        } finally {
+          accountSecurityResendCode.disabled = false;
+        }
+      });
+
+      document.getElementById("accountSecurityAuthenticatorButton")?.addEventListener("click", () => {
+        showToast(t("securityAuthenticatorUnavailableMessage"));
+      });
+
       function openAccountShortcut(action) {
         openAccountDrawer();
         const target = document.querySelector(`[data-account-action="${action}"]`);
@@ -17534,6 +17910,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           }
           if (action === "personal") {
             openPersonalAccountDetails();
+            return;
+          }
+          if (action === "security") {
+            openAccountSecurity();
             return;
           }
           if (action === "referrals") {
@@ -20824,9 +21204,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }
       }
       function fxUser() { return localStorage.getItem("username") || (typeof currentUser !== "undefined" && currentUser?.username) || ""; }
-      async function sendRegisterCode(username, email) {
+      async function sendRegisterCode(username, email, captchaToken) {
         const inviteCode = getPendingReferralCode() || String(registerInviteCode?.value || "").trim().toUpperCase();
-        return apiPost({ action: "sendRegisterCode", username, email, ref: inviteCode });
+        return apiPost({ action: "sendRegisterCode", username, email, ref: inviteCode, captchaToken });
       }
       async function verifyRegisterCode(username, email, code) { return apiPost({ action: "verifyRegisterCode", username, email, code }); }
       async function completeRegistration(f) {
@@ -27029,6 +27409,300 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     #accountDrawer .account-personal-header h2 { font-size: 17px; }
     #accountDrawer .account-personal-icon { flex-basis: 36px; width: 36px; height: 36px; }
     #accountDrawer .account-personal-copy-button { flex-basis: 34px; width: 34px; min-width: 34px; min-height: 34px; }
+  }
+</style>
+<style id="fxmt-account-security-center">
+  #accountDrawer.is-security-open .account-summary,
+  #accountDrawer.is-security-open .account-section-label,
+  #accountDrawer.is-security-open .account-menu-list,
+  #accountDrawer.is-security-open .account-drawer-footnote,
+  #accountDrawer.is-password-reset-open .account-summary,
+  #accountDrawer.is-password-reset-open .account-section-label,
+  #accountDrawer.is-password-reset-open .account-menu-list,
+  #accountDrawer.is-password-reset-open .account-drawer-footnote {
+    display: none !important;
+  }
+  #accountDrawer .account-security-view[hidden] {
+    display: none !important;
+  }
+  #accountDrawer .account-password-reset-view[hidden] {
+    display: none !important;
+  }
+  #accountDrawer .account-security-view {
+    box-sizing: border-box;
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    gap: 12px;
+    padding: 3px 0 14px;
+    color: var(--account-sync-ink);
+  }
+  #accountDrawer.is-security-open .account-security-view {
+    display: flex !important;
+  }
+  #accountDrawer .account-password-reset-view {
+    box-sizing: border-box;
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    gap: 12px;
+    padding: 3px 0 14px;
+    color: var(--account-sync-ink);
+  }
+  #accountDrawer.is-password-reset-open .account-password-reset-view {
+    display: flex !important;
+  }
+  #accountDrawer.is-password-reset-open .account-security-view {
+    display: none !important;
+  }
+  #accountDrawer .account-security-panel {
+    box-sizing: border-box;
+    padding: 17px;
+    border: 1px solid rgba(222, 164, 255, .21);
+    border-radius: 21px;
+    background:
+      radial-gradient(120% 90% at 100% 0%, rgba(178, 91, 255, .13), transparent 58%),
+      linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.018)),
+      var(--account-sync-surface);
+    box-shadow: var(--account-sync-shadow), inset 0 1px rgba(255,255,255,.07);
+  }
+  #accountDrawer .account-security-panel--password {
+    overflow: hidden;
+    padding: 0;
+  }
+  #accountDrawer .account-security-panel-trigger {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 12px;
+    padding: 17px;
+    border: 0;
+    color: var(--account-sync-ink);
+    background: transparent;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  #accountDrawer .account-security-panel-trigger:hover {
+    background: rgba(255,255,255,.035);
+  }
+  #accountDrawer .account-security-panel-trigger:focus-visible {
+    outline: 3px solid rgba(214, 146, 255, .52);
+    outline-offset: -3px;
+  }
+  #accountDrawer .account-security-panel-trigger-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 5px;
+  }
+  #accountDrawer .account-security-panel-trigger-copy strong {
+    color: var(--account-sync-ink);
+    font-size: 15px;
+    font-weight: 800;
+  }
+  #accountDrawer .account-security-panel-trigger-copy small {
+    color: var(--account-sync-muted);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  #accountDrawer .account-security-trigger-arrow {
+    flex: 0 0 auto;
+    color: #dcb5ff;
+    transition: transform .2s ease;
+  }
+  html[dir="ltr"] #accountDrawer .account-security-trigger-arrow {
+    transform: rotate(180deg);
+  }
+  #accountDrawer .account-security-panel-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  #accountDrawer .account-security-panel-icon {
+    display: grid;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid var(--account-sync-line);
+    border-radius: 14px;
+    color: #e8c4ff;
+    background: linear-gradient(145deg, rgba(119,54,154,.35), rgba(70,31,108,.42));
+    box-shadow: inset 0 1px rgba(255,255,255,.12);
+  }
+  #accountDrawer .account-security-panel-heading > div {
+    min-width: 0;
+    flex: 1;
+  }
+  #accountDrawer .account-security-panel h3 {
+    margin: 1px 0 5px;
+    color: var(--account-sync-ink);
+    font-size: 15px;
+    font-weight: 800;
+  }
+  #accountDrawer .account-security-panel-heading p,
+  #accountDrawer .account-security-note {
+    margin: 0;
+    color: var(--account-sync-muted);
+    font-size: 11px;
+    line-height: 1.75;
+  }
+  #accountDrawer .account-security-form {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+  }
+  #accountDrawer .account-security-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  #accountDrawer .account-security-field[hidden] {
+    display: none !important;
+  }
+  #accountDrawer .account-security-field label {
+    color: var(--account-sync-ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #accountDrawer .account-security-field input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid rgba(220, 158, 255, .24);
+    border-radius: 14px;
+    outline: none;
+    color: #fff;
+    background: rgba(9, 7, 21, .58);
+    font: inherit;
+    font-size: 14px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+  #accountDrawer .account-security-password-wrap {
+    position: relative;
+    width: 100%;
+  }
+  #accountDrawer .account-security-password-wrap input {
+    padding-right: 48px;
+  }
+  #accountDrawer .account-security-password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 7px;
+    display: grid;
+    width: 35px;
+    height: 35px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    color: #cba7ed;
+    background: transparent;
+    font-size: 14px;
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition: color .18s ease, background .18s ease;
+  }
+  #accountDrawer .account-security-password-toggle:hover {
+    color: #fff;
+    background: rgba(183, 92, 255, .18);
+  }
+  #accountDrawer .account-security-password-toggle:focus-visible {
+    outline: 2px solid rgba(214, 146, 255, .7);
+    outline-offset: 1px;
+  }
+  #accountDrawer .account-security-field input::placeholder {
+    color: rgba(206, 193, 224, .52);
+  }
+  #accountDrawer .account-security-field input:focus {
+    border-color: rgba(211, 162, 255, .78);
+    box-shadow: 0 0 0 3px rgba(183, 92, 255, .16);
+  }
+  #accountDrawer .account-security-status {
+    min-height: 0;
+    margin: 0;
+    color: #ffb7c4;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  #accountDrawer .account-security-status:empty {
+    display: none;
+  }
+  #accountDrawer .account-security-status.is-success {
+    color: #8ef0c6;
+  }
+  #accountDrawer .account-security-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+  }
+  #accountDrawer .account-security-primary,
+  #accountDrawer .account-security-secondary {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid rgba(220, 158, 255, .28);
+    border-radius: 13px;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .18s ease, opacity .18s ease, border-color .18s ease;
+  }
+  #accountDrawer .account-security-primary {
+    flex: 1 1 150px;
+    border-color: rgba(209, 151, 255, .48);
+    background: linear-gradient(115deg, #913fe4, #c34fae);
+    box-shadow: 0 8px 20px rgba(123, 49, 176, .2), inset 0 1px rgba(255,255,255,.17);
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  #accountDrawer .account-security-secondary {
+    background: linear-gradient(145deg, rgba(162,75,215,.2), rgba(79,37,116,.28));
+  }
+  #accountDrawer .account-security-primary:hover:not(:disabled),
+  #accountDrawer .account-security-secondary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(235, 183, 255, .62);
+  }
+  #accountDrawer .account-security-primary:disabled,
+  #accountDrawer .account-security-secondary:disabled {
+    opacity: .62;
+    cursor: wait;
+  }
+  #accountDrawer .account-security-auth-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    color: #ffd78c;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  #accountDrawer .account-security-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f0b94c;
+    box-shadow: 0 0 10px rgba(240, 185, 76, .48);
+  }
+  #accountDrawer .account-security-note {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(240, 185, 76, .17);
+    border-radius: 13px;
+    background: rgba(240, 185, 76, .06);
+  }
+  #accountDrawer .account-security-panel--authenticator .account-security-secondary {
+    width: 100%;
+  }
+  @media (max-width: 380px) {
+    #accountDrawer .account-security-panel { padding: 14px; }
+    #accountDrawer .account-security-panel h3 { font-size: 14px; }
   }
 </style>
 <style id="fxmt-static-neon-lines">
