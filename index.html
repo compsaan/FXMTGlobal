@@ -11441,21 +11441,20 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           <section class="account-security-panel account-security-panel--app-lock" aria-labelledby="securityAppLockHeading">
             <div class="account-security-panel-heading">
               <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-fingerprint"></i></span>
-              <div>
-                <h3 id="securityAppLockHeading" data-i18n="appLockTitle">قفل التطبيق بالجهاز</h3>
-                <p data-i18n="appLockDescription">فعّل الخيار لطلب بصمة الجهاز أو وسيلة قفل الشاشة عند فتح FXMT أو العودة إليه.</p>
+              <div class="account-app-lock-heading-copy">
+                <h3 id="securityAppLockHeading" data-i18n="appLockTitle">قفل التطبيق</h3>
+                <p data-i18n="appLockDescription">قفل التطبيق ببصمة أو رمز الجهاز.</p>
+              </div>
+              <div class="account-app-lock-row">
+                <div class="account-security-auth-status" id="accountAppLockState">
+                  <span class="account-security-status-dot" aria-hidden="true"></span>
+                  <span data-i18n="appLockOff">غير مفعّل</span>
+                </div>
+                <button class="account-app-lock-switch" id="accountAppLockToggle" type="button" role="switch" aria-checked="false" data-i18n-aria="appLockEnable" aria-label="تفعيل قفل التطبيق">
+                  <span aria-hidden="true"></span>
+                </button>
               </div>
             </div>
-            <div class="account-app-lock-row">
-              <div class="account-security-auth-status" id="accountAppLockState">
-                <span class="account-security-status-dot" aria-hidden="true"></span>
-                <span data-i18n="appLockOff">غير مفعّل</span>
-              </div>
-              <button class="account-app-lock-switch" id="accountAppLockToggle" type="button" role="switch" aria-checked="false" data-i18n-aria="appLockEnable" aria-label="تفعيل قفل التطبيق">
-                <span aria-hidden="true"></span>
-              </button>
-            </div>
-            <p class="account-security-note" data-i18n="appLockControlOnlySettings">يمكن تغيير هذا الخيار من مركز الأمان فقط؛ لا يوجد زر تعطيل على شاشة القفل.</p>
             <p class="account-app-lock-message" id="accountAppLockMessage" role="status" aria-live="polite"></p>
           </section>
 
@@ -12946,8 +12945,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       };
 
       const baseTranslations = {
-        appLockTitle: "Device app lock",
-        appLockDescription: "Turn this on to require your device's fingerprint or available screen-lock method when FXMT opens or resumes.",
+        appLockTitle: "App lock",
+        appLockDescription: "Request a fingerprint or screen-lock method when opening or returning to the app.",
         appLockOn: "On",
         appLockOff: "Off",
         appLockEnable: "Enable app lock",
@@ -12962,7 +12961,6 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         appLockSetupFailed: "Could not set up device authentication. Try again on a supported device.",
         appLockVerifyFailed: "Device verification was not completed. Try again.",
         appLockStorageFailed: "Could not save the app-lock setting on this device.",
-        appLockControlOnlySettings: "This setting can only be changed in Security Center; there is no disable button on the lock screen.",
         appLockRequiresLogin: "Sign in to an account before changing its app-lock setting.",
         pageTitle: "منصة استثمار FXMT",
         appAria: "FXMT wallet home",
@@ -13475,8 +13473,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
            personalData: "البيانات الشخصية",
            personalDataDescription: "الاسم، البريد الإلكتروني وبيانات الملف الشخصي",
            securityCenter: "مركز الأمان",
-           appLockTitle: "قفل التطبيق بالجهاز",
-           appLockDescription: "فعّل الخيار لطلب بصمة الجهاز أو وسيلة قفل الشاشة المتاحة عند فتح FXMT أو العودة إليه.",
+           appLockTitle: "قفل التطبيق",
+            appLockDescription: "قفل التطبيق ببصمة أو رمز الجهاز.",
            appLockOn: "مفعّل",
            appLockOff: "غير مفعّل",
            appLockEnable: "تفعيل قفل التطبيق",
@@ -13491,7 +13489,6 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
            appLockSetupFailed: "تعذر إعداد مصادقة الجهاز. حاول مجددًا على جهاز مدعوم.",
            appLockVerifyFailed: "لم يكتمل التحقق من الجهاز. حاول مجددًا.",
            appLockStorageFailed: "تعذر حفظ إعداد قفل التطبيق على هذا الجهاز.",
-           appLockControlOnlySettings: "يمكن تغيير هذا الخيار من مركز الأمان فقط؛ لا يوجد زر تعطيل على شاشة القفل.",
            appLockRequiresLogin: "سجّل الدخول إلى الحساب أولًا لتغيير إعداد قفله.",
            securityCenterDescription: "إدارة كلمة المرور وطرق التحقق الإضافية",
            securityCenterTitle: "مركز الأمان",
@@ -32271,24 +32268,103 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
 </style>
 
 <style id="fxmt-account-app-lock-style">
-  #accountDrawer .account-app-lock-row {
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 68px !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    border: 1px solid rgba(218, 135, 255, .35) !important;
+    border-radius: 18px !important;
+    background: linear-gradient(145deg, rgba(72,39,96,.34), rgba(29,16,47,.86)) !important;
+    box-shadow: 0 16px 38px rgba(8,2,18,.38), 0 0 22px rgba(182,74,255,.11), inset 0 1px rgba(255,255,255,.1) !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-security-panel-heading {
+    box-sizing: border-box;
     display: flex;
+    width: 100%;
+    min-height: 68px;
+    padding: 11px 13px;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    margin: 0 !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-security-panel-icon {
+    box-sizing: border-box !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    border: 1px solid rgba(218,139,255,.3) !important;
+    border-radius: 11px !important;
+    background: linear-gradient(145deg, rgba(119,54,154,.35), rgba(70,31,108,.42)) !important;
+    box-shadow: inset 0 1px rgba(255,255,255,.12) !important;
+    color: #f0c9ff !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-app-lock-heading-copy {
+    box-sizing: border-box;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock h3 {
+    margin: 0 !important;
+    color: #fff7ff !important;
+    font-size: 13px !important;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-app-lock-heading-copy p {
+    margin: 3px 0 0;
+    color: #c6aed8;
+    font-size: 10px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-app-lock-row {
+    box-sizing: border-box;
+    display: flex;
+    flex: 0 0 94px;
+    width: 94px;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-height: 42px;
+    gap: 4px;
+    min-width: 0;
+    min-height: 34px;
   }
   #accountDrawer .account-app-lock-row .account-security-auth-status {
-    flex: 1;
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    width: auto !important;
+    max-width: 100%;
     margin: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #e5cff5;
+    font-size: 9px;
+    line-height: 1.35;
+    font-weight: 700;
+    white-space: nowrap;
   }
-  #accountDrawer .account-security-auth-status.is-enabled {
-    color: #8ce7bf;
+  #accountDrawer .account-app-lock-row .account-security-auth-status.is-enabled {
+    color: #9aebc5 !important;
+  }
+  #accountDrawer .account-app-lock-row .account-security-status-dot {
+    flex: 0 0 6px;
+    width: 6px;
+    height: 6px;
   }
   #accountDrawer .account-app-lock-switch {
     position: relative;
-    flex: 0 0 40px;
-    width: 40px;
+    flex: 0 0 36px;
+    width: 36px;
     height: 24px;
     padding: 0;
     border: 1px solid rgba(218,139,255,.36);
@@ -32308,10 +32384,10 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     transition: transform .18s ease, background .18s ease;
   }
   html[dir="rtl"] #accountDrawer .account-app-lock-switch.is-enabled > span {
-    transform: translateX(-16px);
+    transform: translateX(-13px);
   }
   html[dir="ltr"] #accountDrawer .account-app-lock-switch.is-enabled > span {
-    transform: translateX(16px);
+    transform: translateX(13px);
   }
   #accountDrawer .account-app-lock-switch.is-enabled {
     border-color: rgba(114,229,181,.56);
@@ -32328,9 +32404,38 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
   }
   #accountDrawer .account-app-lock-message:empty { display: none; }
   #accountDrawer .account-app-lock-message {
+    box-sizing: border-box;
+    min-width: 0;
+    margin: 0;
+    padding: 0 13px 10px;
     color: #d5c0e5;
     font-size: 11px;
     line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 380px) {
+    #accountDrawer #accountSecurityView .account-security-panel--app-lock {
+      border-radius: 16px !important;
+    }
+    #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-security-panel-icon {
+      flex-basis: 32px !important;
+      width: 32px !important;
+      height: 32px !important;
+    }
+    #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-security-panel-heading {
+      min-height: 64px;
+      padding: 9px 10px;
+      gap: 8px;
+    }
+    #accountDrawer #accountSecurityView .account-security-panel--app-lock .account-app-lock-row {
+      flex-basis: 96px;
+      width: 96px;
+      gap: 3px;
+    }
+    #accountDrawer .account-app-lock-switch {
+      flex-basis: 34px;
+      width: 34px;
+    }
   }
 </style>
 
