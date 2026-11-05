@@ -68,6 +68,15 @@
       })();
     </script>
     <script>
+      (function () {
+        try {
+          if (new URLSearchParams(window.location.search).get("fxmtView") === "authenticator") {
+            document.documentElement.setAttribute("data-fxmt-view", "authenticator");
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script>
       /* Keep a script error from trapping the user on the launch overlay. */
       window.setTimeout(function () {
         var splash = document.getElementById("launchSplash");
@@ -10271,8 +10280,230 @@ html[data-theme="dark"]{--muted:#b5bdd8;--muted-2:#9ca8c9;--line:rgba(200,215,25
 .network-mark svg{width:34px!important;height:34px!important;border-radius:50%;filter:drop-shadow(0 3px 8px rgba(0,0,0,.28));overflow:hidden!important}
 html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgba(0,0,0,.12))}
 </style>
+<style id="fxmt-app-lock-bootstrap-style">
+  #fxmtAppLockOverlay {
+    position: fixed; inset: 0; z-index: 2147483647; display: none;
+    align-items: center; justify-content: center; box-sizing: border-box; padding: 24px;
+    color: #fff7ff; font-family: Inter, "Noto Sans Arabic", "Segoe UI", sans-serif;
+    background: radial-gradient(ellipse at 16% 20%, rgba(251,73,190,.2), transparent 34%),
+      radial-gradient(ellipse at 88% 34%, rgba(151,74,255,.2), transparent 38%),
+      linear-gradient(150deg, #080511 0%, #11091e 48%, #090611 100%);
+  }
+  #fxmtAppLockOverlay[hidden] { display: none !important; }
+  #fxmtAppLockOverlay:not([hidden]) { display: flex; visibility: visible !important; }
+  html.fxmt-app-lock-pending body > :not(#fxmtAppLockOverlay) {
+    visibility: hidden !important; pointer-events: none !important;
+  }
+  .fxmt-app-lock-card {
+    width: min(100%, 390px); box-sizing: border-box; padding: 28px 22px 22px;
+    border: 1px solid rgba(218,139,255,.34); border-radius: 26px;
+    background: linear-gradient(145deg, rgba(72,39,96,.72), rgba(29,16,47,.96));
+    box-shadow: 0 22px 60px rgba(0,0,0,.5), 0 0 26px rgba(182,74,255,.16), inset 0 1px rgba(255,255,255,.12);
+    text-align: center;
+  }
+  .fxmt-app-lock-mark {
+    display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 16px;
+    border: 1px solid rgba(218,139,255,.38); border-radius: 20px;
+    color: #f0c9ff; background: linear-gradient(145deg, rgba(119,54,154,.45), rgba(70,31,108,.56));
+    box-shadow: 0 0 22px rgba(183,92,255,.18), inset 0 1px rgba(255,255,255,.14); font-size: 25px;
+  }
+  .fxmt-app-lock-title { margin: 0 0 9px; color: #fff7ff; font-size: 21px; font-weight: 800; }
+  .fxmt-app-lock-description { margin: 0 0 12px; color: #d5c0e5; font-size: 13px; line-height: 1.7; }
+  .fxmt-app-lock-status { min-height: 1.4em; margin: 0 0 12px; color: #f0dfff; font-size: 11px; line-height: 1.55; }
+  .fxmt-app-lock-action {
+    display: block; width: 100%; min-height: 50px; margin-top: 9px; padding: 10px 16px;
+    border: 1px solid rgba(231,179,255,.56); border-radius: 999px;
+    color: #fff; background: linear-gradient(125deg,#c76eff,#9355e8 58%,#c74db7);
+    box-shadow: 0 8px 22px rgba(126,57,172,.24), inset 0 1px rgba(255,255,255,.18);
+    font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .fxmt-app-lock-action:disabled { opacity: .55; cursor: not-allowed; }
+  .fxmt-app-lock-recovery {
+    display: block; margin: 12px auto 0; padding: 7px; border: 0; color: #d5c0e5;
+    background: transparent; font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer;
+  }
+  .fxmt-app-lock-recovery[hidden] { display: none !important; }
+</style>
+<script>
+  (function () {
+    try {
+      if (localStorage.getItem("fxmt-device-app-lock-enabled") === "1") {
+        document.documentElement.classList.add("fxmt-app-lock-pending");
+      }
+    } catch (e) {}
+  })();
+</script>
+
 </head>
   <body>
+    <div class="fxmt-app-lock-overlay" id="fxmtAppLockOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="fxmtAppLockTitle" aria-describedby="fxmtAppLockDescription">
+      <div class="fxmt-app-lock-card">
+        <div class="fxmt-app-lock-mark" aria-hidden="true"><i class="fa-solid fa-fingerprint"></i></div>
+        <h1 class="fxmt-app-lock-title" id="fxmtAppLockTitle">تطبيق FXMT مقفل</h1>
+        <p class="fxmt-app-lock-description" id="fxmtAppLockDescription">افتح التطبيق ببصمتك أو بوسيلة قفل الجهاز المتاحة.</p>
+        <p class="fxmt-app-lock-status" id="fxmtAppLockStatus" role="status" aria-live="polite"></p>
+        <button class="fxmt-app-lock-action" id="fxmtAppLockUnlock" type="button">فتح التطبيق</button>
+        <button class="fxmt-app-lock-recovery" id="fxmtAppLockRecovery" type="button" hidden>تعذّر الفتح؟ إعادة ضبط القفل</button>
+      </div>
+    </div>
+    <script>
+      if (document.documentElement.classList.contains("fxmt-app-lock-pending")) {
+        var fxmtInitialAppLockOverlay = document.getElementById("fxmtAppLockOverlay");
+        if (fxmtInitialAppLockOverlay) fxmtInitialAppLockOverlay.hidden = false;
+      }
+    </script>
+    <!-- ===== معالج ربط تطبيق المصادقة: كل خطوة في صفحة مستقلة ===== -->
+    <div class="aw" id="authWizard" data-no-translate role="dialog" aria-modal="true" aria-labelledby="awTitle" hidden>
+      <header class="aw-header">
+        <button class="aw-back" id="awBack" type="button" aria-label="رجوع">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <h2 class="aw-title" id="awTitle" hidden data-aw-t="title">إدارة المصادقة</h2>
+      </header>
+
+      <section class="aw-page aw-page--intro" data-aw-page="intro">
+        <div class="aw-scroll aw-center">
+          <svg class="aw-hero" viewBox="0 0 160 160" aria-hidden="true">
+            <defs>
+              <linearGradient id="awAuthTile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#37204f"/><stop offset=".55" stop-color="#1d1230"/><stop offset="1" stop-color="#11101f"/></linearGradient>
+              <linearGradient id="awAuthRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f178dc"/><stop offset=".55" stop-color="#b75cff"/><stop offset="1" stop-color="#6d8cff"/></linearGradient>
+            </defs>
+            <circle cx="80" cy="80" r="68" fill="rgba(183,92,255,.055)" stroke="rgba(218,139,255,.22)" stroke-width="1.5"/>
+            <rect x="27" y="27" width="106" height="106" rx="31" fill="url(#awAuthTile)" stroke="rgba(231,179,255,.55)" stroke-width="2"/>
+            <rect x="33" y="33" width="94" height="94" rx="26" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+            <circle cx="80" cy="80" r="43" fill="rgba(17,9,30,.42)" stroke="url(#awAuthRing)" stroke-width="2"/>
+            <g transform="translate(22.4 22.4) scale(2.4)" stroke-width="5.5" stroke-linecap="round">
+              <path d="M24 24L24 6" stroke="#4285f4"/>
+              <path d="M24 24L40 33" stroke="#ea4335"/>
+              <path d="M24 24L8 33" stroke="#fbbc05"/>
+              <path d="M24 24L40 15" stroke="#34a853"/>
+              <path d="M24 24L24 42" stroke="#ea4335"/>
+              <path d="M24 24L8 15" stroke="#4285f4"/>
+            </g>
+            <circle cx="80" cy="80" r="5" fill="#fff" stroke="#b75cff" stroke-width="2"/>
+          </svg>
+          <h1 class="aw-h1" data-aw-t="introTitle">إعداد المصادقة الثنائية</h1>
+          <p class="aw-lead" data-aw-t="introLead">يولّد تطبيق المصادقة رمزًا جديدًا كل 30 ثانية. استخدمه للتحقق عند تسجيل الدخول وتأكيد السحب وبعض تغييرات الأمان.</p>
+        </div>
+        <footer class="aw-foot">
+          <button class="aw-btn" id="awIntroNext" type="button" data-aw-t="introBtn">بدء الإعداد</button>
+        </footer>
+      </section>
+
+      <section class="aw-page" data-aw-page="password" hidden>
+        <div class="aw-scroll">
+          <h3 class="aw-h2" data-aw-t="pwTitle">تأكيد هويتك</h3>
+          <p class="aw-desc" data-aw-t="pwDesc">أدخل كلمة مرور حسابك لبدء الإعداد. لا تشاركها مع أي شخص.</p>
+          <label class="aw-label" for="authenticatorCurrentPassword" data-aw-t="pwLabel">كلمة مرور الحساب</label>
+          <input class="aw-input" id="authenticatorCurrentPassword" type="password" autocomplete="current-password" placeholder="أدخل كلمة مرور حسابك" data-aw-ph="pwPh" />
+          <p class="aw-status" role="status" aria-live="polite"></p>
+        </div>
+        <footer class="aw-foot">
+          <button class="aw-btn" id="authenticatorBeginButton" type="button" data-aw-t="pwBtn">متابعة</button>
+        </footer>
+      </section>
+
+      <section class="aw-page" data-aw-page="download" hidden>
+        <div class="aw-scroll">
+          <div class="aw-step">1 <span>/ 3</span></div>
+          <h3 class="aw-h2" data-aw-t="dlTitle">تنزيل تطبيق المصادقة</h3>
+          <p class="aw-desc" data-aw-t="dlDesc">نوصي بتنزيل أحد التطبيقات أدناه. إذا كان تطبيق Google Authenticator غير متاح، فيرجى تجربة Microsoft Authenticator.</p>
+          <a class="aw-app" id="awStoreGoogle" href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank" rel="noopener noreferrer">
+            <span class="aw-app-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="34" height="34"><g stroke-width="8" stroke-linecap="round"><path d="M24 24L24 6" stroke="#4285f4"/><path d="M24 24L40 33" stroke="#ea4335"/><path d="M24 24L8 33" stroke="#fbbc05"/></g><path d="M24 24L40 15" stroke="#34a853" stroke-width="8" stroke-linecap="round"/><path d="M24 24L24 42" stroke="#ea4335" stroke-width="8" stroke-linecap="round"/><path d="M24 24L8 15" stroke="#4285f4" stroke-width="8" stroke-linecap="round"/></svg>
+            </span>
+            <strong dir="ltr">Google Authenticator</strong>
+            <svg class="aw-dl" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+          </a>
+          <a class="aw-app" id="awStoreMicrosoft" href="https://play.google.com/store/apps/details?id=com.azure.authenticator" target="_blank" rel="noopener noreferrer">
+            <span class="aw-app-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="34" height="34"><path d="M24 4c-7 0-12 5-12 11v4h-2v20c0 3 2 5 5 5h18c3 0 5-2 5-5V19h-2v-4c0-6-5-11-12-11z" fill="#1d6fe0"/><circle cx="24" cy="27" r="5" fill="#53c1f5"/><path d="M15 39c1-6 5-8 9-8s8 2 9 8z" fill="#53c1f5"/></svg>
+            </span>
+            <strong dir="ltr">Microsoft Authenticator</strong>
+            <svg class="aw-dl" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+          </a>
+        </div>
+        <footer class="aw-foot">
+          <p class="aw-foot-note" data-aw-t="dlNote">هل ثبّت التطبيق؟ اضغط «التالي».</p>
+          <button class="aw-btn" id="awDownloadNext" type="button" data-aw-t="next">التالي</button>
+        </footer>
+      </section>
+
+      <section class="aw-page" data-aw-page="connect" hidden>
+        <div class="aw-scroll">
+          <div class="aw-step">2 <span>/ 3</span></div>
+          <ol class="aw-timeline">
+            <li class="aw-tl is-active">
+              <span class="aw-tl-num">1</span>
+              <div class="aw-tl-body">
+                <h3 data-aw-t="s1Title">امسح رمز QR أو انسخ مفتاح الإعداد</h3>
+                <p data-aw-t="s1Desc">احتفظ بالمفتاح في مكان آمن لاستعادة الإعداد عند تغيير جهازك.</p>
+                <div class="aw-key">
+                  <button class="aw-copy" id="authenticatorCopySecret" type="button">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                    <span data-aw-t="copy">نسخ</span>
+                  </button>
+                  <span class="aw-key-text" id="awKeyText" dir="ltr"></span>
+                  <input class="aw-sr" id="authenticatorSecret" type="text" dir="ltr" readonly tabindex="-1" autocomplete="off" aria-label="مفتاح إعداد المصادقة" />
+                </div>
+                <div class="aw-qr-card" id="authenticatorQrCard" hidden>
+                  <div class="aw-qr" id="authenticatorQr" role="img" aria-label="رمز QR لإعداد المصادقة الثنائية"></div>
+                </div>
+                <p class="aw-qr-status" id="authenticatorQrStatus"></p>
+              </div>
+            </li>
+            <li class="aw-tl is-active">
+              <span class="aw-tl-num">2</span>
+              <div class="aw-tl-body">
+                <h3 data-aw-t="s2Title">أضف حسابك إلى تطبيق المصادقة</h3>
+                <p data-aw-t="s2Desc">اضغط +، ثم امسح رمز QR أو أدخل مفتاح الإعداد يدويًا.</p>
+                <div class="aw-plus-demo" aria-hidden="true">
+                  <span class="aw-plus-tile"><svg viewBox="0 0 32 32" width="30" height="30"><path d="M16 4v9" stroke="#ea4335" stroke-width="5" stroke-linecap="round"/><path d="M28 16h-9" stroke="#4285f4" stroke-width="5" stroke-linecap="round"/><path d="M16 28v-9" stroke="#34a853" stroke-width="5" stroke-linecap="round"/><path d="M4 16h9" stroke="#fbbc05" stroke-width="5" stroke-linecap="round"/></svg></span>
+                </div>
+              </div>
+            </li>
+            <li class="aw-tl is-last">
+              <span class="aw-tl-num">3</span>
+              <div class="aw-tl-body">
+                <h3 data-aw-t="s3Title">ارجع إلى FXMT وأدخل الرمز</h3>
+                <p data-aw-t="s3Desc">اكتب الرمز المكوّن من 6 أرقام الظاهر في التطبيق.</p>
+              </div>
+            </li>
+          </ol>
+          <p class="aw-status" role="status" aria-live="polite"></p>
+        </div>
+        <footer class="aw-foot">
+          <button class="aw-btn" id="authenticatorContinueButton" type="button" data-aw-t="next">التالي</button>
+        </footer>
+      </section>
+
+      <section class="aw-page" data-aw-page="verify" hidden>
+        <div class="aw-scroll">
+          <div class="aw-step">3 <span>/ 3</span></div>
+          <h3 class="aw-h2" data-aw-t="vTitle">التحقق من الربط</h3>
+          <p class="aw-desc" data-aw-t="vDesc">أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة. يتجدد الرمز كل 30 ثانية.</p>
+          <div class="aw-otp" id="awOtp">
+            <input class="aw-otp-input" id="authenticatorSetupCode" type="text" dir="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="رمز تطبيق المصادقة" />
+            <div class="aw-otp-boxes" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+          <p class="aw-status" role="status" aria-live="polite"></p>
+        </div>
+        <footer class="aw-foot">
+          <button class="aw-btn" id="authenticatorCompleteButton" type="button" disabled data-aw-t="confirm">تفعيل المصادقة</button>
+        </footer>
+      </section>
+
+      <section class="aw-page" data-aw-page="success" hidden>
+        <div class="aw-scroll aw-center">
+          <svg class="aw-hero aw-hero--ok" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="46" fill="none" stroke="#1f6bff" stroke-width="6"/><path d="M40 62l14 14 28-32" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h1 class="aw-h1" data-aw-t="okTitle">تم تفعيل المصادقة الثنائية</h1>
+          <p class="aw-lead" data-aw-t="okDesc">استخدم رمز التطبيق عند تسجيل الدخول وتأكيد عمليات السحب.</p>
+        </div>
+        <footer class="aw-foot">
+          <button class="aw-btn" id="awDone" type="button" data-aw-t="done">تم</button>
+        </footer>
+      </section>
+    </div>
     <style id="pull-refresh-style">
       #pullRefreshIndicator{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;z-index:200000;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid rgba(226,206,255,.66);border-radius:50%;background:radial-gradient(circle at 28% 20%,rgba(255,255,255,.3),rgba(159,113,205,.17) 42%,rgba(20,12,39,.76) 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,.55),inset 0 -4px 9px rgba(84,38,131,.26),0 5px 17px rgba(0,0,0,.28),0 0 15px rgba(186,130,255,.28);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);opacity:0;pointer-events:none;transform:translate(-50%,-64px) scale(.78);transition:transform .2s cubic-bezier(.2,.8,.2,1),opacity .2s ease}
       #pullRefreshIndicator.is-visible{opacity:1;transform:translate(-50%,var(--pull-offset,0px)) scale(1)}
@@ -10693,6 +10924,12 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
                  <button class="password-toggle" type="button" data-password-target="loginPassword" aria-label="إظهار كلمة المرور" data-i18n-aria="showPassword">
                   <i class="fa-solid fa-eye" aria-hidden="true"></i>
                 </button>
+              </div>
+
+              <div class="auth-field" id="loginAuthenticatorField" hidden>
+                <label for="loginAuthenticatorCode">رمز تطبيق المصادقة</label>
+                <input id="loginAuthenticatorCode" name="authenticatorCode" type="text" dir="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" />
+                <small class="authenticator-inline-hint">افتح تطبيق المصادقة وأدخل الرمز المكوّن من 6 أرقام.</small>
               </div>
 
               <p class="auth-status" id="loginStatus" role="alert" aria-live="polite"></p>
@@ -11219,20 +11456,71 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             </button>
           </section>
 
+          <section class="account-security-panel account-security-panel--authenticator" aria-labelledby="securityAuthenticatorMenuHeading">
+            <button class="account-security-panel-trigger" id="accountSecurityAuthenticatorOpen" type="button">
+              <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
+              <span class="account-security-panel-trigger-copy">
+                <strong id="securityAuthenticatorMenuHeading">المصادقة الثنائية</strong>
+                 <small>فتح شاشة إعداد تطبيق المصادقة وإدارة الحماية.</small>
+              </span>
+              <i class="account-security-trigger-arrow fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+          </section>
+
+          <section class="account-security-panel account-security-panel--app-lock" aria-labelledby="securityAppLockHeading">
+            <div class="account-security-panel-trigger account-app-lock-row">
+              <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-fingerprint"></i></span>
+              <span class="account-security-panel-trigger-copy">
+                <strong id="securityAppLockHeading" data-i18n="appLockTitle">قفل التطبيق</strong>
+                <small data-i18n="appLockDescription">يطلب النظام بصمة أو وسيلة قفل الجهاز المتاحة عند فتح FXMT أو العودة إليه.</small>
+                <small class="account-app-lock-message" id="accountAppLockMessage" role="status" aria-live="polite"></small>
+              </span>
+              <span class="account-app-lock-state" id="accountAppLockState">غير مفعّل</span>
+              <button class="account-app-lock-switch" id="accountAppLockToggle" type="button" role="switch" aria-checked="false" aria-label="تفعيل قفل التطبيق">
+                <span aria-hidden="true"></span>
+              </button>
+            </div>
+          </section>
+
+        </section>
+
+        <section class="account-security-view" id="accountAuthenticatorView" hidden aria-labelledby="accountAuthenticatorTitle">
+          <header class="account-personal-header">
+            <button class="account-personal-back" id="accountAuthenticatorBack" type="button" aria-label="العودة إلى مركز الأمان">
+              <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </button>
+            <div>
+              <h2 id="accountAuthenticatorTitle">المصادقة الثنائية</h2>
+              <p>إعداد تطبيق المصادقة وإدارة حماية الحساب.</p>
+            </div>
+          </header>
           <section class="account-security-panel account-security-panel--authenticator" aria-labelledby="securityAuthenticatorHeading">
             <div class="account-security-panel-heading">
               <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-mobile-screen-button"></i></span>
               <div>
-                <h3 id="securityAuthenticatorHeading" data-i18n="securityAuthenticatorTitle">ربط تطبيق المصادقة</h3>
-                <p data-i18n="securityAuthenticatorDescription">استخدم تطبيق مصادقة لإضافة طبقة حماية إلى حسابك.</p>
+                <h3 id="securityAuthenticatorHeading">إعداد المصادقة الثنائية</h3>
+                <p>استخدم تطبيق مصادقة لإضافة طبقة حماية إلى حسابك.</p>
               </div>
             </div>
             <div class="account-security-auth-status">
               <span class="account-security-status-dot" aria-hidden="true"></span>
-              <span data-i18n="securityAuthenticatorNotLinked">غير مرتبط</span>
+              <span id="authenticatorStatusLabel">غير مفعّل</span>
             </div>
-            <p class="account-security-note" data-i18n="securityAuthenticatorNote">ربط تطبيق المصادقة غير مفعّل في الخادم الحالي؛ لن يتم إنشاء إعداد أو حفظه حتى يتوفر دعم التحقق الآمن.</p>
-            <button class="account-security-secondary" id="accountSecurityAuthenticatorButton" type="button" data-i18n="securityAuthenticatorSetup">إعداد تطبيق المصادقة</button>
+            <p class="account-security-note" id="authenticatorStatusNote">عند التفعيل، سيُطلب رمز مؤقت عند تسجيل الدخول وتأكيد السحب.</p>
+            <button class="account-security-secondary" id="accountSecurityAuthenticatorButton" type="button">إعداد المصادقة الثنائية</button>
+            <button class="account-security-secondary" id="accountSecurityAuthenticatorReset" type="button" hidden>إعادة إعداد المصادقة الثنائية</button>
+            <button class="account-security-secondary" id="accountSecurityAuthenticatorDisable" type="button" hidden>إيقاف المصادقة الثنائية</button>
+            <div class="authenticator-setup-panel" id="authenticatorSetupPanel" hidden>
+              <div class="authenticator-enrollment" id="authenticatorDisableDetails" hidden>
+                <label class="authenticator-label" for="authenticatorDisablePassword">كلمة مرور الحساب</label>
+                <input class="authenticator-input" id="authenticatorDisablePassword" type="password" autocomplete="current-password" placeholder="أدخل كلمة مرور حسابك" />
+                <label class="authenticator-label" for="authenticatorDisableCode">رمز تطبيق المصادقة الحالي</label>
+                <input class="authenticator-input" id="authenticatorDisableCode" type="text" dir="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" />
+                <button class="account-security-primary" id="authenticatorDisableConfirm" type="button">تأكيد إيقاف المصادقة</button>
+              </div>
+              <p class="account-security-status" id="authenticatorSetupStatus" role="status" aria-live="polite"></p>
+              <button class="account-security-secondary" id="authenticatorCancelButton" type="button">إلغاء</button>
+            </div>
           </section>
         </section>
 
@@ -11272,7 +11560,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               </div>
               <p class="account-security-status" id="accountSecurityResetStatus" role="status" aria-live="polite" aria-atomic="true"></p>
               <div class="account-security-actions">
-                <button class="account-security-primary" id="accountSecurityResetSubmit" type="submit" data-i18n="securityConfirmButton">تأكيد</button>
+                <button class="account-security-primary" id="accountSecurityResetSubmit" type="submit" data-i18n="securityConfirmButton">تفعيل المصادقة</button>
                 <button class="account-security-secondary" id="accountSecurityResendCode" type="button" data-i18n="securityResendCode" hidden>إعادة إرسال الرمز</button>
               </div>
             </form>
@@ -12038,6 +12326,12 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               </div>
               <div class="withdraw-password-assist"><p class="fx-hint-line">للتحقق من هويتك فقط، ولا نشاركها.</p><button class="withdraw-forgot-password" id="withdrawForgotPasswordButton" type="button" data-i18n="forgotPassword">نسيت كلمة المرور؟</button></div>
             </div>
+            <div class="fx-field" id="withdrawAuthenticatorField" hidden>
+              <label class="deposit-label" for="withdrawAuthenticatorCode">رمز تطبيق المصادقة</label>
+              <input class="fx-input" id="withdrawAuthenticatorCode" type="text" dir="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" />
+              <p class="fx-hint-line">أدخل الرمز الحالي من تطبيق المصادقة.</p>
+            </div>
+            <button class="withdraw-forgot-password" id="withdrawEnableAuthenticatorButton" type="button">إعداد المصادقة الثنائية من مركز الأمان</button>
             <label class="deposit-confirm-row"><input id="withdrawConfirmCheck" type="checkbox" /><span>أتحمل مسؤولية صحة العنوان والشبكة، وأعلم أن العملية غير قابلة للإلغاء.</span></label>
             <p class="deposit-error" id="withdrawRequestError" aria-live="polite"></p>
             <div class="deposit-footer">
@@ -12675,6 +12969,27 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       };
 
       const baseTranslations = {
+        appLockTitle: "App lock",
+        appLockDescription: "Ask for your device's available screen lock when opening or returning to FXMT.",
+        appLockOn: "On",
+        appLockOff: "Off",
+        appLockEnable: "Enable app lock",
+        appLockDisable: "Disable app lock",
+        appLockUnavailable: "Requires HTTPS and a browser with device authentication. Set up a screen lock on your device.",
+        appLockReady: "Your device lock will be requested when FXMT opens or resumes.",
+        appLockActivating: "Confirm with your fingerprint or device lock to enable app lock.",
+        appLockDisabling: "Confirm with your device lock to disable app lock.",
+        appLockWaiting: "Waiting for device confirmation…",
+        appLockEnabledToast: "App lock enabled.",
+        appLockDisabledToast: "App lock disabled.",
+        appLockSetupFailed: "Could not set up device authentication. Make sure a screen lock is enabled and try again.",
+        appLockVerifyFailed: "Device verification was not completed. Try again or reset app lock.",
+        appLockScreenTitle: "FXMT is locked",
+        appLockScreenDescription: "Unlock with your fingerprint or the screen-lock method available on your device.",
+        appLockUnlock: "Unlock FXMT",
+        appLockRecovery: "Can't unlock? Reset app lock",
+        appLockRecoveryConfirm: "Reset app lock on this device? This disables the local app lock without deleting your account data.",
+        appLockCredentialMissing: "The device credential is unavailable. Reset app lock to continue.",
         pageTitle: "منصة استثمار FXMT",
         appAria: "FXMT wallet home",
         languageLabel: "Language",
@@ -13189,6 +13504,27 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
            securityCenterDescription: "إدارة كلمة المرور وطرق التحقق الإضافية",
            securityCenterTitle: "مركز الأمان",
            securityCenterPageDescription: "تحكّم بكلمة المرور ووسائل حماية حسابك.",
+            appLockTitle: "قفل التطبيق",
+            appLockDescription: "يطلب النظام بصمة أو وسيلة قفل الجهاز المتاحة عند فتح FXMT أو العودة إليه.",
+            appLockOn: "مفعّل",
+            appLockOff: "غير مفعّل",
+            appLockEnable: "تفعيل قفل التطبيق",
+            appLockDisable: "إيقاف قفل التطبيق",
+            appLockUnavailable: "تتطلب هذه الميزة موقعًا آمنًا (HTTPS) ومتصفحًا يدعم المصادقة بالجهاز. تأكد من تفعيل قفل الشاشة.",
+            appLockReady: "سيطلب التطبيق قفل الجهاز عند فتح FXMT أو العودة إليه.",
+            appLockActivating: "أكّد هويتك ببصمة أو بوسيلة قفل جهازك لتفعيل الميزة.",
+            appLockDisabling: "أكّد هويتك بقفل الجهاز لإيقاف الميزة.",
+            appLockWaiting: "بانتظار تأكيد الجهاز…",
+            appLockEnabledToast: "تم تفعيل قفل التطبيق.",
+            appLockDisabledToast: "تم إيقاف قفل التطبيق.",
+            appLockSetupFailed: "تعذر إعداد التحقق بالجهاز. تأكد من تفعيل قفل الشاشة ثم حاول مجددًا.",
+            appLockVerifyFailed: "لم يكتمل التحقق من الجهاز. حاول مجددًا أو أعد ضبط قفل التطبيق.",
+            appLockScreenTitle: "تطبيق FXMT مقفل",
+            appLockScreenDescription: "افتح التطبيق ببصمتك أو بوسيلة قفل الجهاز المتاحة.",
+            appLockUnlock: "فتح التطبيق",
+            appLockRecovery: "تعذّر الفتح؟ إعادة ضبط القفل",
+            appLockRecoveryConfirm: "هل تريد إعادة ضبط قفل التطبيق على هذا الجهاز؟ سيُعطّل القفل المحلي دون حذف بيانات حسابك.",
+            appLockCredentialMissing: "تعذر العثور على بيانات قفل الجهاز. أعد ضبط قفل التطبيق للمتابعة.",
            securityPasswordTitle: "إعادة تعيين كلمة المرور",
            securityPasswordDescription: "اختر كلمة مرور جديدة، ثم أدخل رمز التأكيد المرسل إلى بريدك الإلكتروني.",
            securityPasswordCollapsedDescription: "غيّر كلمة المرور باستخدام رمز يُرسل إلى بريدك الإلكتروني.",
@@ -14780,6 +15116,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (personalView) personalView.hidden = true;
         const securityView = document.getElementById("accountSecurityView");
         if (securityView) securityView.hidden = true;
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = true;
         const passwordResetView = document.getElementById("accountPasswordResetView");
         if (passwordResetView) passwordResetView.hidden = true;
         accountDrawerBackdrop.classList.remove("is-visible");
@@ -15271,6 +15609,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       let balanceSyncSequence = 0;
       let balanceSyncUser = "";
       let currentSessionToken = "";
+      let accountAuthenticatorEnabled = false;
+      let accountAuthenticatorStatusKnown = false;
       const authSessionStorageKey = "fxmt-auth-session-v1";
       let userRefreshTimer = null;
       let userRefreshInFlight = false;
@@ -15874,6 +16214,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
 
       function openAuthView(view) {
+        resetLoginAuthenticatorChallenge();
         welcomeScreen.classList.add("auth-mode");
         welcomeIntro.classList.add("is-hidden");
         authSuccess.classList.remove("is-visible");
@@ -15905,6 +16246,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
 
       function showWelcomeIntro() {
+        resetLoginAuthenticatorChallenge();
         welcomeScreen.classList.remove("auth-mode");
         authViews.forEach((item) => item.classList.remove("is-visible"));
         authSuccess.classList.remove("is-visible");
@@ -16546,6 +16888,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       }
 
       function clearCurrentAuthSession() {
+        resetLoginAuthenticatorChallenge();
         if (userRefreshTimer) window.clearInterval(userRefreshTimer);
         userRefreshTimer = null;
         try {
@@ -16563,6 +16906,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         balanceSyncError = false;
         try { accountBrowserBackupWrite(currentUser?.username || ""); } catch (error) {}
         currentSessionToken = "";
+        accountAuthenticatorEnabled = false;
+        accountAuthenticatorStatusKnown = false;
         accountCloudReadyFor = "";
         deviceHistoryServerKey = "";
         currentUser = null;
@@ -16637,6 +16982,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           }, 45000);
           });
           const response = await Promise.race([request, timeout]);
+          // A logout can happen while session restoration is in flight.
+          // Ignore this stale response instead of restoring the logged-out user.
+          if (currentSessionToken !== savedToken) return;
           const restoredUser = ensureAuthenticatedIdentity(readUserFromResponse(response), "");
           if (!restoredUser?.id) throw new Error("لم يُرجع الخادم بيانات المستخدم.");
           if (restoredUser.username) activateLocalAccountData(restoredUser.username);
@@ -16680,6 +17028,14 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           if (restoreTimeoutId) window.clearTimeout(restoreTimeoutId);
         }
       }
+
+      // Keep other open tabs signed out when this tab removes the session token.
+      window.addEventListener("storage", (event) => {
+        if (event.key !== authSessionStorageKey || event.newValue !== null || !currentSessionToken) return;
+        clearCurrentAuthSession();
+        showWelcomeIntro();
+        welcomeScreen.classList.remove("is-hidden");
+      });
 
       document.getElementById("createAccountButton").addEventListener("click", () => openAuthView(registerView));
       document.getElementById("loginButton").addEventListener("click", () => openAuthView(loginView));
@@ -17044,6 +17400,26 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }
       });
 
+      let loginAuthenticatorRequired = false;
+      let loginAuthenticatorChallengeIdentifier = "";
+      const loginAuthenticatorField = document.getElementById("loginAuthenticatorField");
+      const loginAuthenticatorInput = document.getElementById("loginAuthenticatorCode");
+      function resetLoginAuthenticatorChallenge() {
+        loginAuthenticatorRequired = false;
+        loginAuthenticatorChallengeIdentifier = "";
+        if (loginAuthenticatorField) loginAuthenticatorField.hidden = true;
+        if (loginAuthenticatorInput) {
+          loginAuthenticatorInput.value = "";
+          loginAuthenticatorInput.required = false;
+        }
+      }
+      loginUsername.addEventListener("input", () => {
+        if (loginAuthenticatorRequired) resetLoginAuthenticatorChallenge();
+      });
+      loginPassword.addEventListener("input", () => {
+        if (loginAuthenticatorRequired) resetLoginAuthenticatorChallenge();
+      });
+      loginForm.addEventListener("reset", resetLoginAuthenticatorChallenge);
       loginForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         setAuthStatus(loginStatus);
@@ -17059,15 +17435,36 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           reportAuthIssue(loginStatus, t("missingFields", { fields: missing.map(([, , label]) => t(label)).join(currentLanguage === "ar" ? "، " : ", ") }), missing.map(([, field]) => field));
           return;
         }
+        if (
+          loginAuthenticatorRequired &&
+          identifier.trim().toLowerCase() !== loginAuthenticatorChallengeIdentifier
+        ) resetLoginAuthenticatorChallenge();
+        const authenticatorCode = normalizeAuthenticatorInput(loginAuthenticatorInput?.value || "").trim();
+        if (loginAuthenticatorRequired && !/^\d{6}$/.test(authenticatorCode)) {
+          setAuthStatus(loginStatus, "أدخل رمز المصادقة المكوّن من 6 أرقام.");
+          loginAuthenticatorInput?.focus();
+          return;
+        }
         const submitButton = loginForm.querySelector(".auth-submit");
         setAuthSubmitting(submitButton, true);
         try {
-          const response = await apiRequest({ action: "login", identifier, username: identifier, password, device: buildCurrentDevicePayload() });
+          const response = await apiRequest({
+            action: "login",
+            identifier,
+            username: identifier,
+            password,
+            authenticatorCode,
+            device: buildCurrentDevicePayload()
+          });
           if (!response.sessionToken) {
             currentSessionToken = "";
             try { localStorage.removeItem(authSessionStorageKey); } catch (storageError) {}
             throw new Error("الخادم الحالي لا يدعم مزامنة سجل الأجهزة بعد. حدّث نشر Google Apps Script ثم أعد المحاولة.");
           }
+          accountAuthenticatorEnabled = Boolean(responseData(response).authenticatorEnabled);
+          accountAuthenticatorStatusKnown = true;
+          setWithdrawAuthenticatorVisibility(accountAuthenticatorEnabled);
+          resetLoginAuthenticatorChallenge();
           currentSessionToken = String(response.sessionToken);
           try {
             localStorage.setItem(authSessionStorageKey, currentSessionToken);
@@ -17094,6 +17491,15 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           setAuthStatus(loginStatus, t("loginSuccess"), true);
           setTimeout(() => closeWelcome(t("loginSuccess")), 350);
         } catch (error) {
+          if (error.code === "two_factor_required") {
+            loginAuthenticatorRequired = true;
+            loginAuthenticatorChallengeIdentifier = identifier.trim().toLowerCase();
+            if (loginAuthenticatorField) loginAuthenticatorField.hidden = false;
+            if (loginAuthenticatorInput) loginAuthenticatorInput.required = true;
+            setAuthStatus(loginStatus, "أدخل رمز تطبيق المصادقة لإكمال تسجيل الدخول.");
+            loginAuthenticatorInput?.focus();
+            return;
+          }
           if (error.code === "account_banned") {
             showAccountViolationNotice();
             return;
@@ -17646,6 +18052,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         accountDrawer.classList.remove("is-password-reset-open");
         const securityView = document.getElementById("accountSecurityView");
         if (securityView) securityView.hidden = true;
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = true;
         const passwordResetView = document.getElementById("accountPasswordResetView");
         if (passwordResetView) passwordResetView.hidden = true;
         accountDrawer.classList.add("is-personal-open");
@@ -17663,6 +18071,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         accountDrawer.classList.remove("is-password-reset-open");
         accountDrawer.classList.add("is-security-open");
         if (securityView) securityView.hidden = false;
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = true;
         const passwordResetView = document.getElementById("accountPasswordResetView");
         if (passwordResetView) passwordResetView.hidden = true;
         const submitKey = accountSecurityCodeRequested ? "securityVerifyAndUpdate" : "securityConfirmButton";
@@ -17670,11 +18080,29 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         accountSecurityResetSubmit.textContent = t(submitKey);
         document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
         document.getElementById("accountSecurityBack")?.focus();
+        refreshAccountAppLockToggle();
+      }
+
+      function openAccountAuthenticator() {
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = true;
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = false;
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        if (passwordResetView) passwordResetView.hidden = true;
+        accountDrawer.classList.remove("is-personal-open");
+        accountDrawer.classList.remove("is-password-reset-open");
+        accountDrawer.classList.add("is-security-open");
+        document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("accountAuthenticatorBack")?.focus();
+        refreshAuthenticatorStatus();
       }
 
       function openAccountPasswordReset() {
         const securityView = document.getElementById("accountSecurityView");
         if (securityView) securityView.hidden = true;
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = true;
         const passwordResetView = document.getElementById("accountPasswordResetView");
         accountDrawer.classList.remove("is-security-open");
         accountDrawer.classList.add("is-password-reset-open");
@@ -17738,8 +18166,288 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       document.getElementById("accountSecurityBack")?.addEventListener("click", () => {
         const securityView = document.getElementById("accountSecurityView");
         if (securityView) securityView.hidden = true;
-        accountDrawer.classList.remove("is-security-open");
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = true;
+        const personalView = document.getElementById("accountPersonalView");
+        if (personalView) personalView.hidden = true;
+        const passwordResetView = document.getElementById("accountPasswordResetView");
+        if (passwordResetView) passwordResetView.hidden = true;
+        accountDrawer.classList.remove("is-security-open", "is-personal-open", "is-password-reset-open");
+        document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
         document.querySelector('[data-account-action="security"]')?.focus();
+      });
+
+      const APP_LOCK_ENABLED_KEY = "fxmt-device-app-lock-enabled";
+      const APP_LOCK_CREDENTIAL_KEY = "fxmt-device-app-lock-credential";
+      const appLockToggle = document.getElementById("accountAppLockToggle");
+      const appLockState = document.getElementById("accountAppLockState");
+      const appLockMessage = document.getElementById("accountAppLockMessage");
+      const appLockOverlay = document.getElementById("fxmtAppLockOverlay");
+      const appLockOverlayStatus = document.getElementById("fxmtAppLockStatus");
+      const appLockOverlayTitle = document.getElementById("fxmtAppLockTitle");
+      const appLockOverlayDescription = document.getElementById("fxmtAppLockDescription");
+      const appLockUnlockButton = document.getElementById("fxmtAppLockUnlock");
+      const appLockRecoveryButton = document.getElementById("fxmtAppLockRecovery");
+      let appLockPlatformSupportPromise = null;
+      let appLockPromptActive = false;
+
+      function isDeviceAppLockEnabled() {
+        try { return localStorage.getItem(APP_LOCK_ENABLED_KEY) === "1"; }
+        catch (error) { return false; }
+      }
+
+      function getDeviceAppLockCredentialId() {
+        try { return localStorage.getItem(APP_LOCK_CREDENTIAL_KEY) || ""; }
+        catch (error) { return ""; }
+      }
+
+      async function isDeviceAppLockSupported() {
+        if (!appLockPlatformSupportPromise) {
+          appLockPlatformSupportPromise = (async () => {
+            if (!window.isSecureContext || !window.location.hostname || !window.crypto?.getRandomValues) return false;
+            if (!navigator.credentials || typeof navigator.credentials.create !== "function" || typeof navigator.credentials.get !== "function") return false;
+            const publicKeyCredential = window.PublicKeyCredential;
+            if (!publicKeyCredential || typeof publicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== "function") return false;
+            try { return Boolean(await publicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); }
+            catch (error) { return false; }
+          })();
+        }
+        return appLockPlatformSupportPromise;
+      }
+
+      function appLockRandomBytes(length) {
+        return window.crypto.getRandomValues(new Uint8Array(length));
+      }
+
+      function appLockEncodeBase64Url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+        return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      }
+
+      function appLockDecodeBase64Url(value) {
+        const base64 = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+        const binary = window.atob(padded);
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      }
+
+      function setAccountAppLockMessage(key) {
+        if (appLockMessage) appLockMessage.textContent = key ? t(key) : "";
+      }
+
+      async function refreshAccountAppLockToggle(messageOverride = "") {
+        if (!appLockToggle) return;
+        const enabled = isDeviceAppLockEnabled();
+        const supported = await isDeviceAppLockSupported();
+        if (appLockState) {
+          appLockState.textContent = t(enabled ? "appLockOn" : "appLockOff");
+          appLockState.classList.toggle("is-enabled", enabled);
+        }
+        appLockToggle.setAttribute("aria-checked", String(enabled));
+        appLockToggle.setAttribute("aria-label", t(enabled ? "appLockDisable" : "appLockEnable"));
+        appLockToggle.classList.toggle("is-enabled", enabled);
+        appLockToggle.disabled = !supported;
+        setAccountAppLockMessage(!supported ? "appLockUnavailable" : messageOverride || (enabled ? "appLockReady" : ""));
+      }
+
+      function setAppLockOverlayStatus(key) {
+        if (appLockOverlayStatus) appLockOverlayStatus.textContent = key ? t(key) : "";
+      }
+
+      async function refreshAppLockOverlay() {
+        if (!appLockOverlay || !isDeviceAppLockEnabled()) return;
+        appLockOverlay.hidden = false;
+        if (appLockOverlayTitle) appLockOverlayTitle.textContent = t("appLockScreenTitle");
+        if (appLockOverlayDescription) appLockOverlayDescription.textContent = t("appLockScreenDescription");
+        if (appLockUnlockButton) appLockUnlockButton.textContent = t("appLockUnlock");
+        if (appLockRecoveryButton) appLockRecoveryButton.textContent = t("appLockRecovery");
+        const supported = await isDeviceAppLockSupported();
+        const hasCredential = Boolean(getDeviceAppLockCredentialId());
+        if (appLockUnlockButton) appLockUnlockButton.disabled = !supported || !hasCredential;
+        if (appLockRecoveryButton) appLockRecoveryButton.hidden = supported && hasCredential;
+        if (!supported) setAppLockOverlayStatus("appLockUnavailable");
+        else if (!hasCredential) setAppLockOverlayStatus("appLockCredentialMissing");
+        else setAppLockOverlayStatus("appLockUnlock");
+      }
+
+      function showDeviceAppLock() {
+        if (!isDeviceAppLockEnabled() || !appLockOverlay) return;
+        document.documentElement.classList.add("fxmt-app-lock-pending");
+        appLockOverlay.hidden = false;
+        setAppLockOverlayStatus("appLockUnlock");
+        refreshAppLockOverlay();
+      }
+
+      function clearDeviceAppLockOverlay() {
+        document.documentElement.classList.remove("fxmt-app-lock-pending");
+        if (appLockOverlay) appLockOverlay.hidden = true;
+        setAppLockOverlayStatus("");
+        if (appLockRecoveryButton) appLockRecoveryButton.hidden = true;
+      }
+
+      async function requestDeviceAppLockVerification() {
+        const credentialId = getDeviceAppLockCredentialId();
+        if (!credentialId) throw new Error("missing-device-credential");
+        const credential = await navigator.credentials.get({
+          publicKey: {
+            challenge: appLockRandomBytes(32),
+            allowCredentials: [{ type: "public-key", id: appLockDecodeBase64Url(credentialId) }],
+            userVerification: "required",
+            timeout: 60000
+          }
+        });
+        if (!credential) throw new Error("device-verification-cancelled");
+        return credential;
+      }
+
+      async function enableDeviceAppLock() {
+        if (!await isDeviceAppLockSupported()) {
+          setAccountAppLockMessage("appLockUnavailable");
+          return;
+        }
+        let messageAfterPrompt = "";
+        setAccountAppLockMessage("appLockActivating");
+        appLockToggle.disabled = true;
+        appLockPromptActive = true;
+        try {
+          let credentialId = getDeviceAppLockCredentialId();
+          if (credentialId) {
+            await requestDeviceAppLockVerification();
+          } else {
+            const credential = await navigator.credentials.create({
+              publicKey: {
+                challenge: appLockRandomBytes(32),
+                rp: { id: window.location.hostname, name: "FXMT" },
+                user: {
+                  id: appLockRandomBytes(16),
+                  name: "fxmt-device-app-lock",
+                  displayName: "FXMT app lock"
+                },
+                pubKeyCredParams: [
+                  { type: "public-key", alg: -7 },
+                  { type: "public-key", alg: -257 }
+                ],
+                authenticatorSelection: {
+                  authenticatorAttachment: "platform",
+                  residentKey: "discouraged",
+                  userVerification: "required"
+                },
+                timeout: 60000,
+                attestation: "none"
+              }
+            });
+            if (!credential) throw new Error("device-credential-creation-failed");
+            credentialId = appLockEncodeBase64Url(credential.rawId);
+            localStorage.setItem(APP_LOCK_CREDENTIAL_KEY, credentialId);
+          }
+          localStorage.setItem(APP_LOCK_ENABLED_KEY, "1");
+          messageAfterPrompt = "appLockReady";
+          showToast(t("appLockEnabledToast"));
+        } catch (error) {
+          messageAfterPrompt = "appLockSetupFailed";
+        } finally {
+          appLockPromptActive = false;
+          await refreshAccountAppLockToggle(messageAfterPrompt);
+        }
+      }
+
+      async function disableDeviceAppLock() {
+        if (!await isDeviceAppLockSupported()) {
+          setAccountAppLockMessage("appLockUnavailable");
+          return;
+        }
+        let messageAfterPrompt = "";
+        setAccountAppLockMessage("appLockDisabling");
+        appLockToggle.disabled = true;
+        appLockPromptActive = true;
+        try {
+          await requestDeviceAppLockVerification();
+          localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+          clearDeviceAppLockOverlay();
+          showToast(t("appLockDisabledToast"));
+        } catch (error) {
+          messageAfterPrompt = "appLockVerifyFailed";
+        } finally {
+          appLockPromptActive = false;
+          await refreshAccountAppLockToggle(messageAfterPrompt);
+        }
+      }
+
+      async function handleDeviceAppLockToggle() {
+        if (isDeviceAppLockEnabled()) await disableDeviceAppLock();
+        else await enableDeviceAppLock();
+      }
+
+      async function unlockDeviceApp() {
+        if (!await isDeviceAppLockSupported()) {
+          setAppLockOverlayStatus("appLockUnavailable");
+          if (appLockRecoveryButton) appLockRecoveryButton.hidden = false;
+          return;
+        }
+        if (!getDeviceAppLockCredentialId()) {
+          setAppLockOverlayStatus("appLockCredentialMissing");
+          if (appLockRecoveryButton) appLockRecoveryButton.hidden = false;
+          return;
+        }
+        if (appLockUnlockButton) appLockUnlockButton.disabled = true;
+        if (appLockRecoveryButton) appLockRecoveryButton.hidden = true;
+        setAppLockOverlayStatus("appLockWaiting");
+        appLockPromptActive = true;
+        try {
+          await requestDeviceAppLockVerification();
+          clearDeviceAppLockOverlay();
+          document.getElementById("accountAppLockToggle")?.focus();
+        } catch (error) {
+          setAppLockOverlayStatus("appLockVerifyFailed");
+          if (appLockRecoveryButton) appLockRecoveryButton.hidden = false;
+        } finally {
+          appLockPromptActive = false;
+          if (appLockUnlockButton && isDeviceAppLockEnabled()) appLockUnlockButton.disabled = false;
+        }
+      }
+
+      function recoverDeviceAppLock() {
+        if (!window.confirm(t("appLockRecoveryConfirm"))) return;
+        localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+        localStorage.removeItem(APP_LOCK_CREDENTIAL_KEY);
+        clearDeviceAppLockOverlay();
+        refreshAccountAppLockToggle();
+        showToast(t("appLockDisabledToast"));
+      }
+
+      appLockToggle?.addEventListener("click", handleDeviceAppLockToggle);
+      appLockUnlockButton?.addEventListener("click", unlockDeviceApp);
+      appLockRecoveryButton?.addEventListener("click", recoverDeviceAppLock);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden" && !appLockPromptActive && isDeviceAppLockEnabled()) showDeviceAppLock();
+      });
+      window.addEventListener("pagehide", () => {
+        if (!appLockPromptActive && isDeviceAppLockEnabled()) showDeviceAppLock();
+      });
+      window.addEventListener("pageshow", (event) => {
+        if (event.persisted && isDeviceAppLockEnabled()) showDeviceAppLock();
+      });
+      if (isDeviceAppLockEnabled()) {
+        document.documentElement.classList.add("fxmt-app-lock-pending");
+        refreshAppLockOverlay();
+      }
+      refreshAccountAppLockToggle();
+
+      document.getElementById("accountSecurityAuthenticatorOpen")?.addEventListener("click", openAccountAuthenticator);
+      document.getElementById("accountAuthenticatorBack")?.addEventListener("click", () => {
+        if (authenticatorSetupPanel && !authenticatorSetupPanel.hidden) {
+          document.getElementById("authenticatorCancelButton")?.click();
+        }
+        const authenticatorView = document.getElementById("accountAuthenticatorView");
+        if (authenticatorView) authenticatorView.hidden = true;
+        const securityView = document.getElementById("accountSecurityView");
+        if (securityView) securityView.hidden = false;
+        accountDrawer.classList.remove("is-password-reset-open");
+        accountDrawer.classList.add("is-security-open");
+        document.querySelector(".account-stationary-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+        document.getElementById("accountSecurityAuthenticatorOpen")?.focus();
       });
 
       document.getElementById("accountPasswordResetOpen")?.addEventListener("click", openAccountPasswordReset);
@@ -17870,8 +18578,567 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         }
       });
 
+      const authenticatorSetupPanel = document.getElementById("authenticatorSetupPanel");
+      const authenticatorSetupStatus = document.getElementById("authenticatorSetupStatus");
+      const authenticatorCurrentPassword = document.getElementById("authenticatorCurrentPassword");
+      const authenticatorStartDetails = document.getElementById("authenticatorStartDetails");
+      const authenticatorSecretInput = document.getElementById("authenticatorSecret");
+      const authenticatorEnrollmentDetails = document.getElementById("authenticatorEnrollmentDetails");
+      const authenticatorDisableDetails = document.getElementById("authenticatorDisableDetails");
+      const authenticatorSetupCode = document.getElementById("authenticatorSetupCode");
+      const authenticatorDisableCode = document.getElementById("authenticatorDisableCode");
+      const authenticatorDisablePassword = document.getElementById("authenticatorDisablePassword");
+      const authenticatorQrCard = document.getElementById("authenticatorQrCard");
+      const authenticatorQr = document.getElementById("authenticatorQr");
+      const authenticatorQrStatus = document.getElementById("authenticatorQrStatus");
+      const authenticatorConnectPage = document.getElementById("authenticatorConnectPage");
+      const authenticatorVerifyPage = document.getElementById("authenticatorVerifyPage");
+      let authenticatorQrLibraryPromise = null;
+      let currentAuthenticatorOtpUri = "";
+
+      function authenticatorErrorMessage(error, fallback) {
+        if (error?.code === "busy") {
+          return currentLanguage === "ar"
+            ? "الخادم مشغول بطلبات أخرى. أُعيدت المحاولة تلقائيًا؛ انتظر قليلًا ثم حاول مجددًا."
+            : "The server is handling other requests. A retry was attempted; please wait a moment and try again.";
+        }
+        return error?.message || fallback;
+      }
+
+      async function authenticatorRequest(payload) {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            return await apiRequest(payload, { timeoutMs: 40000 });
+          } catch (error) {
+            if (error?.code !== "busy" || attempt === 1) {
+              if (error?.code === "busy") error.message = authenticatorErrorMessage(error);
+              throw error;
+            }
+            setAuthenticatorSetupStatus(currentLanguage === "ar"
+              ? "الخادم مشغول لحظيًا؛ جارٍ إعادة المحاولة تلقائيًا…"
+              : "The server is briefly busy; retrying automatically…");
+            await new Promise((resolve) => window.setTimeout(resolve, 900));
+          }
+        }
+        throw new Error(currentLanguage === "ar"
+          ? "تعذر الاتصال بالخادم. حاول مرة أخرى بعد قليل."
+          : "Could not reach the server. Please try again shortly.");
+      }
+
+      function loadAuthenticatorQrLibrary() {
+        if (typeof window.qrcode === "function") return Promise.resolve(window.qrcode);
+        if (authenticatorQrLibraryPromise) return authenticatorQrLibraryPromise;
+        authenticatorQrLibraryPromise = new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";
+          script.integrity = "sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k";
+          script.crossOrigin = "anonymous";
+          script.referrerPolicy = "no-referrer";
+          script.async = true;
+          script.onload = () => typeof window.qrcode === "function"
+            ? resolve(window.qrcode)
+            : reject(new Error("QR_LIBRARY_UNAVAILABLE"));
+          script.onerror = () => reject(new Error("QR_LIBRARY_UNAVAILABLE"));
+          document.head.appendChild(script);
+        }).catch((error) => {
+          authenticatorQrLibraryPromise = null;
+          throw error;
+        });
+        return authenticatorQrLibraryPromise;
+      }
+
+      async function renderAuthenticatorQr(uri) {
+        if (!authenticatorQrCard || !authenticatorQr || !uri) return false;
+        authenticatorQrCard.hidden = false;
+        authenticatorQr.replaceChildren();
+        try {
+          const createQr = await loadAuthenticatorQrLibrary();
+          const qr = createQr(0, "M");
+          qr.addData(uri, "Byte");
+          qr.make();
+          authenticatorQr.innerHTML = qr.createSvgTag(5, 4);
+          const svg = authenticatorQr.querySelector("svg");
+          if (svg) {
+            svg.setAttribute("role", "presentation");
+            svg.setAttribute("focusable", "false");
+          }
+          authenticatorQrStatus.textContent = currentLanguage === "ar"
+            ? ""
+            : "The setup QR is rendered on this device; it is not sent to a QR image service.";
+          return true;
+        } catch (error) {
+          authenticatorQrStatus.textContent = currentLanguage === "ar"
+            ? "تعذر تحميل مولّد QR. استخدم المفتاح اليدوي أعلاه بدلًا منه."
+            : "The QR generator could not load. Use the manual key above instead.";
+          return false;
+        }
+      }
+
+      function clearAuthenticatorQr() {
+        currentAuthenticatorOtpUri = "";
+        if (authenticatorQr) authenticatorQr.replaceChildren();
+        if (authenticatorQrCard) authenticatorQrCard.hidden = true;
+        if (authenticatorStartDetails) authenticatorStartDetails.hidden = false;
+        if (authenticatorSecretInput) authenticatorSecretInput.value = "";
+        const awKeyText = document.getElementById("awKeyText");
+        if (awKeyText) awKeyText.textContent = "";
+        if (authenticatorQrStatus) authenticatorQrStatus.textContent = "";
+        if (authenticatorSetupCode) authenticatorSetupCode.value = "";
+        if (typeof authWizSyncOtp === "function") authWizSyncOtp();
+        if (authenticatorConnectPage) authenticatorConnectPage.hidden = false;
+        if (authenticatorVerifyPage) authenticatorVerifyPage.hidden = true;
+        document.querySelector(".authenticator-store-block")?.removeAttribute("open");
+        const manualKeyDetails = document.querySelector(".authenticator-manual-key");
+        if (manualKeyDetails) manualKeyDetails.open = false;
+      }
+
+      function setAuthenticatorSetupStatus(message, isSuccess = false) {
+        if (!authenticatorSetupStatus) return;
+        authenticatorSetupStatus.textContent = message || "";
+        authenticatorSetupStatus.classList.toggle("is-success", Boolean(isSuccess));
+        document.querySelectorAll("#authWizard .aw-status").forEach((line) => {
+          line.textContent = message || "";
+          line.classList.toggle("is-success", Boolean(isSuccess));
+        });
+      }
+
+      let authenticatorResetMode = false;
+
+      function updateAuthenticatorStatus(enabled) {
+        accountAuthenticatorEnabled = Boolean(enabled);
+        accountAuthenticatorStatusKnown = true;
+        const isArabic = currentLanguage === "ar";
+        const label = document.getElementById("authenticatorStatusLabel");
+        const note = document.getElementById("authenticatorStatusNote");
+        document.querySelector(".account-security-auth-status")
+          ?.classList.toggle("is-enabled", Boolean(enabled));
+        const setupButton = document.getElementById("accountSecurityAuthenticatorButton");
+        const resetButton = document.getElementById("accountSecurityAuthenticatorReset");
+        const disableButton = document.getElementById("accountSecurityAuthenticatorDisable");
+        setWithdrawAuthenticatorVisibility(accountAuthenticatorEnabled);
+        if (label) label.textContent = enabled
+          ? (isArabic ? "مفعّل" : "Enabled")
+          : (isArabic ? "غير مفعّل" : "Not enabled");
+        if (note) note.textContent = enabled
+          ? (isArabic
+            ? "ستحتاج إلى رمز تطبيق المصادقة عند تسجيل الدخول وتأكيد السحب."
+            : "Your authenticator code is required when signing in and confirming withdrawals.")
+          : (isArabic
+            ? "عند التفعيل، سيتطلب تسجيل الدخول والسحب رمزًا مؤقتًا من تطبيق المصادقة."
+            : "When enabled, sign-ins and withdrawals require a temporary authenticator code.");
+        if (setupButton) setupButton.hidden = Boolean(enabled);
+        if (resetButton) {
+          resetButton.hidden = !enabled;
+          resetButton.textContent = isArabic ? "إعادة إعداد المصادقة الثنائية" : "Reconfigure two-factor authentication";
+        }
+        if (disableButton) disableButton.hidden = !enabled;
+        authenticatorResetMode = false;
+        if (authenticatorSetupPanel) authenticatorSetupPanel.hidden = true;
+        if (authenticatorStartDetails) authenticatorStartDetails.hidden = false;
+        if (authenticatorEnrollmentDetails) authenticatorEnrollmentDetails.hidden = true;
+        if (authenticatorDisableDetails) authenticatorDisableDetails.hidden = true;
+        if (authenticatorCurrentPassword) authenticatorCurrentPassword.value = "";
+        if (authenticatorSecretInput) authenticatorSecretInput.value = "";
+        if (authenticatorSetupCode) authenticatorSetupCode.value = "";
+        if (authenticatorDisableCode) authenticatorDisableCode.value = "";
+        if (authenticatorDisablePassword) authenticatorDisablePassword.value = "";
+        clearAuthenticatorQr();
+        setAuthenticatorSetupStatus("");
+      }
+
+      async function refreshAuthenticatorStatus() {
+        if (!currentSessionToken) {
+          updateAuthenticatorStatus(false);
+          return;
+        }
+        try {
+          const result = await authenticatorRequest({ action: "getAuthenticatorStatus" });
+          updateAuthenticatorStatus(Boolean(responseData(result).authenticatorEnabled));
+        } catch (error) {
+          accountAuthenticatorStatusKnown = false;
+          setWithdrawAuthenticatorVisibility(false);
+          const statusNote = document.getElementById("authenticatorStatusNote");
+          if (statusNote) statusNote.textContent = authenticatorErrorMessage(error, "تعذر تحميل حالة المصادقة.");
+          const requestError = document.getElementById("withdrawRequestError");
+          if (withdrawLayer?.classList.contains("is-open") && requestError) {
+            requestError.textContent = authenticatorErrorMessage(error, "تعذر تحميل حالة المصادقة.");
+          }
+          setAuthenticatorSetupStatus(authenticatorErrorMessage(error, "تعذر تحميل حالة المصادقة الثنائية."));
+        }
+      }
+
+      // ===== معالج ربط تطبيق المصادقة: صفحة مستقلة لكل خطوة =====
+      const authWizard = document.getElementById("authWizard");
+      const authWizOrder = ["intro", "password", "download", "connect", "verify", "success"];
+      let authWizCurrent = "intro";
+      const authWizBackMap = { intro: null, password: "intro", download: "password", connect: "download", verify: "connect", success: null };
+
+      (function setupAuthWizardStoreLinks() {
+        const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) && (navigator.maxTouchPoints > 0 || /iPad|iPhone|iPod/.test(navigator.userAgent));
+        const google = document.getElementById("awStoreGoogle");
+        const microsoft = document.getElementById("awStoreMicrosoft");
+        if (isApple) {
+          if (google) google.href = "https://apps.apple.com/app/google-authenticator/id388497605";
+          if (microsoft) microsoft.href = "https://apps.apple.com/app/microsoft-authenticator/id983156458";
+        }
+      })();
+
+      function isAuthWizardOpen() {
+        return Boolean(authWizard && !authWizard.hidden);
+      }
+
+      function authWizGo(page, isBack = false) {
+        if (!authWizard) return;
+        authWizCurrent = page;
+        authWizard.querySelectorAll("[data-aw-page]").forEach((section) => {
+          const active = section.dataset.awPage === page;
+          section.hidden = !active;
+          section.classList.toggle("is-back", active && isBack);
+          if (active) section.querySelector(".aw-scroll")?.scrollTo({ top: 0 });
+        });
+        const title = document.getElementById("awTitle");
+        if (title) title.hidden = page === "intro" || page === "success";
+        const backButton = document.getElementById("awBack");
+        if (backButton) backButton.style.visibility = page === "success" ? "hidden" : "";
+        setAuthenticatorSetupStatus("");
+        window.setTimeout(() => {
+          if (page === "password") authenticatorCurrentPassword?.focus();
+          if (page === "verify") authenticatorSetupCode?.focus();
+        }, 120);
+      }
+
+      const AUTH_WIZ_TEXT = {
+        ar: {
+          title: "إدارة المصادقة", introTitle: "إعداد المصادقة الثنائية",
+          introLead: "يولّد تطبيق المصادقة رمزًا جديدًا كل 30 ثانية. استخدمه للتحقق عند تسجيل الدخول وتأكيد السحب وبعض تغييرات الأمان.",
+          introBtn: "بدء الإعداد", pwTitle: "تأكيد هويتك", pwDesc: "أدخل كلمة مرور حسابك لبدء الإعداد. لا تشاركها مع أي شخص.",
+          pwLabel: "كلمة المرور الحالية", pwPh: "أدخل كلمة مرور حسابك", pwBtn: "متابعة",
+          dlTitle: "ثبّت تطبيق مصادقة", dlDesc: "اختر تطبيقًا لإعداد رموز التحقق. يتوفر Google Authenticator وMicrosoft Authenticator.",
+          dlNote: "هل ثبّت التطبيق؟ اضغط «التالي».", next: "التالي",
+          s1Title: "امسح رمز QR أو انسخ مفتاح الإعداد", s1Desc: "احتفظ بالمفتاح في مكان آمن لاستعادة الإعداد عند تغيير جهازك.", copy: "نسخ",
+          s2Title: "أضف حسابك إلى تطبيق المصادقة", s2Desc: "اضغط +، ثم امسح رمز QR أو أدخل مفتاح الإعداد يدويًا.",
+          s3Title: "ارجع إلى FXMT وأدخل الرمز", s3Desc: "اكتب الرمز المكوّن من 6 أرقام الظاهر في التطبيق.",
+          vTitle: "التحقق من الإعداد", vDesc: "أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة. يتجدد الرمز كل 30 ثانية.", confirm: "تفعيل المصادقة",
+          okTitle: "تم تفعيل المصادقة الثنائية", okDesc: "استخدم رمز التطبيق عند تسجيل الدخول وتأكيد عمليات السحب.", done: "تم"
+        },
+        en: {
+          title: "Authenticator", introTitle: "Set up two-factor authentication",
+          introLead: "Your authenticator app creates a new code every 30 seconds. Use it to verify sign-ins, withdrawals, and some security changes.",
+          introBtn: "Start setup", pwTitle: "Confirm it's you", pwDesc: "Enter your account password to begin setup. Never share it with anyone.",
+          pwLabel: "Current password", pwPh: "Enter your account password", pwBtn: "Continue",
+          dlTitle: "Install an authenticator app", dlDesc: "Choose an app to generate verification codes: Google Authenticator or Microsoft Authenticator.",
+          dlNote: "App installed? Tap “Next”.", next: "Next",
+          s1Title: "Scan the QR code or copy the setup key", s1Desc: "Keep the key somewhere safe in case you change devices.", copy: "Copy",
+          s2Title: "Add your account to the app", s2Desc: "Tap +, then scan the QR code or enter the setup key manually.",
+          s3Title: "Return to FXMT and enter the code", s3Desc: "Enter the 6-digit code shown in the app.",
+          vTitle: "Verify setup", vDesc: "Enter the 6-digit code from your authenticator app. It refreshes every 30 seconds.", confirm: "Turn on authentication",
+          okTitle: "Two-factor authentication is on", okDesc: "Use an authenticator code when signing in and confirming withdrawals.", done: "Done"
+        }
+      };
+
+      function applyAuthWizardLanguage() {
+        if (!authWizard) return;
+        const isArabic = String(currentLanguage || "ar").toLowerCase().startsWith("ar");
+        const dict = isArabic ? AUTH_WIZ_TEXT.ar : AUTH_WIZ_TEXT.en;
+        authWizard.setAttribute("dir", isArabic ? "rtl" : "ltr");
+        authWizard.setAttribute("lang", isArabic ? "ar" : "en");
+        authWizard.querySelectorAll("[data-aw-t]").forEach((node) => {
+          const value = dict[node.dataset.awT];
+          if (value != null) node.textContent = value;
+        });
+        authWizard.querySelectorAll("[data-aw-ph]").forEach((node) => {
+          const value = dict[node.dataset.awPh];
+          if (value != null) node.setAttribute("placeholder", value);
+        });
+      }
+
+      function openAuthWizard() {
+        if (!authWizard) return;
+        if (authWizard.parentElement !== document.body) document.body.appendChild(authWizard);
+        clearAuthenticatorQr();
+        if (authenticatorCurrentPassword) authenticatorCurrentPassword.value = "";
+        authWizSyncOtp();
+        applyAuthWizardLanguage();
+        authWizard.hidden = false;
+        document.documentElement.classList.add("aw-lock");
+        authWizGo("intro");
+      }
+
+      function closeAuthWizard() {
+        if (!authWizard) return;
+        authWizard.hidden = true;
+        document.documentElement.classList.remove("aw-lock");
+        if (authenticatorCurrentPassword) authenticatorCurrentPassword.value = "";
+        clearAuthenticatorQr();
+        authWizSyncOtp();
+        setAuthenticatorSetupStatus("");
+        document.getElementById("accountSecurityAuthenticatorButton")?.focus();
+      }
+
+      function authWizBack() {
+        const previous = authWizBackMap[authWizCurrent];
+        if (!previous) { closeAuthWizard(); return; }
+        if (previous === "password") clearAuthenticatorQr();
+        authWizGo(previous, true);
+      }
+
+      function authWizSyncOtp() {
+        if (!authenticatorSetupCode) return;
+        const value = String(authenticatorSetupCode.value || "");
+        const boxes = document.querySelectorAll("#awOtp .aw-otp-boxes span");
+        const focused = document.activeElement === authenticatorSetupCode;
+        boxes.forEach((box, index) => {
+          box.textContent = value[index] || "";
+          box.classList.toggle("is-filled", index < value.length);
+          box.classList.toggle("is-active", focused && index === Math.min(value.length, 5));
+        });
+        const complete = document.getElementById("authenticatorCompleteButton");
+        if (complete && complete.getAttribute("aria-busy") !== "true") complete.disabled = !/^\d{6}$/.test(value);
+      }
+
+      authenticatorSetupCode?.addEventListener("input", () => {
+        const clean = normalizeAuthenticatorInput(String(authenticatorSetupCode.value || "")).replace(/\D/g, "").slice(0, 6);
+        if (authenticatorSetupCode.value !== clean) authenticatorSetupCode.value = clean;
+        authWizSyncOtp();
+        if (clean.length === 6) setAuthenticatorSetupStatus("");
+      });
+      authenticatorSetupCode?.addEventListener("focus", authWizSyncOtp);
+      authenticatorSetupCode?.addEventListener("blur", authWizSyncOtp);
+      authenticatorSetupCode?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") document.getElementById("authenticatorCompleteButton")?.click();
+      });
+      authenticatorCurrentPassword?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") document.getElementById("authenticatorBeginButton")?.click();
+      });
+
+      document.getElementById("awBack")?.addEventListener("click", authWizBack);
+      document.getElementById("awIntroNext")?.addEventListener("click", () => authWizGo("password"));
+      document.getElementById("awDownloadNext")?.addEventListener("click", () => authWizGo("connect"));
+      document.getElementById("awDone")?.addEventListener("click", closeAuthWizard);
+
       document.getElementById("accountSecurityAuthenticatorButton")?.addEventListener("click", () => {
-        showToast(t("securityAuthenticatorUnavailableMessage"));
+        if (!currentSessionToken) {
+          setAuthenticatorSetupStatus("سجّل الدخول مجدداً ثم أعد المحاولة.");
+          return;
+        }
+        if (authenticatorSetupPanel) authenticatorSetupPanel.hidden = true;
+        openAuthWizard();
+      });
+
+      document.getElementById("authenticatorBeginButton")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const password = authenticatorCurrentPassword.value;
+        if (!password) {
+          setAuthenticatorSetupStatus("أدخل كلمة المرور الحالية للمتابعة.");
+          authenticatorCurrentPassword.focus();
+          return;
+        }
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        setAuthenticatorSetupStatus(currentLanguage === "ar"
+          ? "جارٍ إنشاء المفتاح بأمان…"
+          : "Creating your setup key securely…", true);
+        try {
+          const result = await authenticatorRequest({ action: "beginAuthenticatorSetup", password });
+          const data = responseData(result);
+          if (!data.authenticatorSecret) throw new Error("لم يُرجع الخادم مفتاح الإعداد.");
+          const secret = String(data.authenticatorSecret);
+          authenticatorSecretInput.value = secret;
+          const keyText = document.getElementById("awKeyText");
+          if (keyText) keyText.textContent = secret;
+          currentAuthenticatorOtpUri = String(data.otpauthUri || "");
+          if (!currentAuthenticatorOtpUri) {
+            const issuer = "ExByteX";
+            const accountLabel = currentUser?.email || currentUser?.username || "account";
+            currentAuthenticatorOtpUri = "otpauth://totp/" +
+              encodeURIComponent(issuer + ":" + accountLabel) +
+              "?secret=" + encodeURIComponent(secret) +
+              "&issuer=" + encodeURIComponent(issuer) +
+              "&algorithm=SHA1&digits=6&period=30";
+          }
+          authenticatorSetupCode.value = "";
+          authWizSyncOtp();
+          authWizGo("download");
+          renderAuthenticatorQr(currentAuthenticatorOtpUri);
+        } catch (error) {
+          setAuthenticatorSetupStatus(authenticatorErrorMessage(error, "تعذر بدء إعداد المصادقة الثنائية."));
+        } finally {
+          button.disabled = false;
+          button.removeAttribute("aria-busy");
+        }
+      });
+
+      document.getElementById("authenticatorContinueButton")?.addEventListener("click", () => {
+        if (!String(authenticatorSecretInput?.value || "").trim()) {
+          setAuthenticatorSetupStatus(currentLanguage === "ar"
+            ? "لم يظهر مفتاح الإعداد. ارجع وحاول إنشاءه من جديد."
+            : "The setup key is missing. Go back and create it again.");
+          return;
+        }
+        authWizGo("verify");
+      });
+
+      document.getElementById("authenticatorCopySecret")?.addEventListener("click", async () => {
+        const secret = String(authenticatorSecretInput?.value || "").trim();
+        if (!secret) {
+          setAuthenticatorSetupStatus(currentLanguage === "ar" ? "مفتاح الإعداد غير متاح للنسخ." : "The setup key is not available to copy.");
+          return;
+        }
+        let copied = false;
+        try {
+          if (navigator.clipboard?.writeText && window.isSecureContext) {
+            await navigator.clipboard.writeText(secret);
+            copied = true;
+          }
+        } catch (error) {}
+        if (!copied) {
+          const temporaryCopyField = document.createElement("textarea");
+          temporaryCopyField.value = secret;
+          temporaryCopyField.setAttribute("readonly", "");
+          temporaryCopyField.style.position = "fixed";
+          temporaryCopyField.style.opacity = "0";
+          temporaryCopyField.style.pointerEvents = "none";
+          (authWizard || document.body).appendChild(temporaryCopyField);
+          temporaryCopyField.focus();
+          temporaryCopyField.select();
+          temporaryCopyField.setSelectionRange(0, temporaryCopyField.value.length);
+          try { copied = document.execCommand("copy"); } catch (error) {}
+          temporaryCopyField.remove();
+        }
+        if (copied) {
+          if (typeof showToast === "function") showToast(currentLanguage === "ar" ? "تم نسخ المفتاح" : "Key copied");
+          setAuthenticatorSetupStatus(currentLanguage === "ar"
+            ? "تم نسخ المفتاح. الصقه في تطبيق المصادقة."
+            : "Key copied. Paste it into your authenticator app.", true);
+        } else {
+          const keyText = document.getElementById("awKeyText");
+          if (keyText && window.getSelection) {
+            const range = document.createRange();
+            range.selectNodeContents(keyText);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          setAuthenticatorSetupStatus(currentLanguage === "ar"
+            ? "تعذر النسخ التلقائي؛ تم تحديد المفتاح. استخدم نسخ من قائمة الهاتف."
+            : "Auto-copy is unavailable. The key is selected; use Copy in your phone menu.");
+        }
+      });
+
+      document.getElementById("authenticatorCompleteButton")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const code = normalizeAuthenticatorInput(authenticatorSetupCode.value.trim());
+        if (!/^\d{6}$/.test(code)) {
+          setAuthenticatorSetupStatus("أدخل الرمز الحالي المكوّن من 6 أرقام.");
+          authenticatorSetupCode.focus();
+          return;
+        }
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        try {
+          await authenticatorRequest({
+            action: "completeAuthenticatorSetup",
+            password: authenticatorCurrentPassword.value,
+            authenticatorCode: code
+          });
+          updateAuthenticatorStatus(true);
+          authWizGo("success");
+          showToast("تم تفعيل المصادقة الثنائية وتسجيل الخروج من الأجهزة الأخرى.");
+        } catch (error) {
+          setAuthenticatorSetupStatus(authenticatorErrorMessage(error, "تعذر التحقق من الرمز."));
+        } finally {
+          button.removeAttribute("aria-busy");
+          button.disabled = false;
+          authWizSyncOtp();
+        }
+      });
+
+      document.getElementById("accountSecurityAuthenticatorDisable")?.addEventListener("click", () => {
+        authenticatorResetMode = false;
+        authenticatorSetupPanel.hidden = false;
+        authenticatorDisableDetails.hidden = false;
+        const confirmButton = document.getElementById("authenticatorDisableConfirm");
+        if (confirmButton) confirmButton.textContent = currentLanguage === "ar" ? "تأكيد إيقاف المصادقة" : "Confirm disabling authentication";
+        if (authenticatorDisablePassword) authenticatorDisablePassword.value = "";
+        authenticatorDisableCode.value = "";
+        setAuthenticatorSetupStatus("");
+        authenticatorDisablePassword?.focus();
+      });
+
+      document.getElementById("accountSecurityAuthenticatorReset")?.addEventListener("click", () => {
+        authenticatorResetMode = true;
+        authenticatorSetupPanel.hidden = false;
+        authenticatorDisableDetails.hidden = false;
+        const confirmButton = document.getElementById("authenticatorDisableConfirm");
+        if (confirmButton) confirmButton.textContent = currentLanguage === "ar" ? "التحقق وبدء إعادة الإعداد" : "Verify and start reconfiguration";
+        if (authenticatorDisablePassword) authenticatorDisablePassword.value = "";
+        authenticatorDisableCode.value = "";
+        setAuthenticatorSetupStatus(currentLanguage === "ar"
+          ? "أدخل كلمة المرور والرمز الحاليين. بعد التحقق سيُلغى الربط الحالي ويبدأ إعداد التطبيق الجديد."
+          : "Enter your current password and code. After verification, the current link will be removed and setup for the new app will begin.");
+        authenticatorDisablePassword?.focus();
+      });
+
+      document.getElementById("authenticatorDisableConfirm")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const resetMode = authenticatorResetMode;
+        const code = normalizeAuthenticatorInput(authenticatorDisableCode.value.trim());
+        const password = authenticatorDisablePassword?.value || "";
+        if (!password) {
+          setAuthenticatorSetupStatus("أدخل كلمة المرور الحالية للمتابعة.");
+          authenticatorDisablePassword?.focus();
+          return;
+        }
+        if (!/^\d{6}$/.test(code)) {
+          setAuthenticatorSetupStatus("أدخل الرمز الحالي المكوّن من 6 أرقام.");
+          authenticatorDisableCode.focus();
+          return;
+        }
+        const confirmMessage = resetMode
+          ? (currentLanguage === "ar"
+            ? "سيُلغى الربط الحالي بعد التحقق، وستحتاج إلى إكمال إعداد التطبيق الجديد فورًا. هل تريد المتابعة؟"
+            : "The current link will be removed after verification, and you'll need to finish setting up the new app immediately. Continue?")
+          : (currentLanguage === "ar"
+            ? "هل تريد إيقاف المصادقة الثنائية عن تسجيل الدخول والسحب؟"
+            : "Disable two-factor authentication for sign-ins and withdrawals?");
+        if (!window.confirm(confirmMessage)) return;
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        try {
+          await authenticatorRequest({
+            action: "disableAuthenticator",
+            password,
+            authenticatorCode: code
+          });
+          updateAuthenticatorStatus(false);
+          if (resetMode) {
+            showToast(currentLanguage === "ar"
+              ? "تم إلغاء الربط السابق. ابدأ إعداد التطبيق الجديد الآن."
+              : "The previous link was removed. Start setting up the new app now.");
+            openAuthWizard();
+          } else {
+            showToast(currentLanguage === "ar"
+              ? "تم إيقاف المصادقة الثنائية عن تسجيل الدخول والسحب."
+              : "Two-factor authentication is disabled for sign-ins and withdrawals.");
+          }
+        } catch (error) {
+          setAuthenticatorSetupStatus(authenticatorErrorMessage(error, "تعذر إيقاف المصادقة الثنائية."));
+        } finally {
+          button.disabled = false;
+          button.removeAttribute("aria-busy");
+        }
+      });
+
+      document.getElementById("authenticatorCancelButton")?.addEventListener("click", () => {
+        authenticatorResetMode = false;
+        if (authenticatorSetupPanel) authenticatorSetupPanel.hidden = true;
+        const confirmButton = document.getElementById("authenticatorDisableConfirm");
+        if (confirmButton) confirmButton.textContent = currentLanguage === "ar" ? "تأكيد إيقاف المصادقة" : "Confirm disabling authentication";
+        if (authenticatorDisablePassword) authenticatorDisablePassword.value = "";
+        authenticatorDisableCode.value = "";
+        authenticatorDisableDetails.hidden = true;
+        if (isAuthWizardOpen()) closeAuthWizard();
+        setAuthenticatorSetupStatus("");
       });
 
       function openAccountShortcut(action) {
@@ -17894,7 +19161,8 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           const action = button.dataset.accountAction;
           if (action === "logout") {
             closeAccountDrawer();
-            if (currentSessionToken) apiRequest({ action: "logout" }).catch(() => {});
+            const logoutToken = currentSessionToken;
+            if (logoutToken) apiRequest({ action: "logout", sessionToken: logoutToken }).catch(() => {});
             clearCurrentAuthSession();
             showWelcomeIntro();
             welcomeScreen.classList.remove("is-hidden");
@@ -20161,7 +21429,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       function resetWithdrawFlow() {
         selectedWithdrawNetwork = null;
         withdrawAmountInput.value = "";
-        ["withdrawAddressInput", "withdrawAddressConfirmInput", "withdrawMemoInput", "withdrawPasswordInput"].forEach((id) => {
+        ["withdrawAddressInput", "withdrawAddressConfirmInput", "withdrawMemoInput", "withdrawPasswordInput", "withdrawAuthenticatorCode"].forEach((id) => {
           document.getElementById(id).value = "";
         });
         document.getElementById("withdrawPasswordInput").type = "password";
@@ -20195,6 +21463,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           walletDetailsLayer.setAttribute("aria-hidden", "true");
         }
         resetWithdrawFlow();
+        refreshAuthenticatorStatus();
         withdrawLayer.classList.add("is-open");
         withdrawLayer.setAttribute("aria-hidden", "false");
         document.body.style.overflow = "hidden";
@@ -20354,10 +21623,38 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         openAuthView(passwordResetView);
       });
 
+      document.getElementById("withdrawEnableAuthenticatorButton").addEventListener("click", () => {
+        closeWithdrawFlow();
+        openAccountDrawer();
+        window.setTimeout(() => {
+          document.querySelector('[data-account-action="security"]')?.click();
+        }, 80);
+      });
+
+      function setWithdrawAuthenticatorVisibility(enabled) {
+        const field = document.getElementById("withdrawAuthenticatorField");
+        const setupButton = document.getElementById("withdrawEnableAuthenticatorButton");
+        if (field) field.hidden = !enabled;
+        if (setupButton) setupButton.hidden = Boolean(enabled);
+        if (!enabled) {
+          const codeInput = document.getElementById("withdrawAuthenticatorCode");
+          if (codeInput) codeInput.value = "";
+        }
+        if (typeof refreshWithdrawSubmitState === "function") refreshWithdrawSubmitState();
+      }
+
+      function normalizeAuthenticatorInput(value) {
+        return String(value || "")
+          .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+          .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+      }
       function refreshWithdrawSubmitState() {
         const password = document.getElementById("withdrawPasswordInput").value.trim();
+        const code = normalizeAuthenticatorInput(document.getElementById("withdrawAuthenticatorCode").value.trim());
         const confirmed = document.getElementById("withdrawConfirmCheck").checked;
-        document.getElementById("withdrawSubmitButton").disabled = !(password.length >= 6 && confirmed);
+        document.getElementById("withdrawSubmitButton").disabled =
+          !(accountAuthenticatorStatusKnown && password.length >= 6 &&
+            (!accountAuthenticatorEnabled || /^\d{6}$/.test(code)) && confirmed);
       }
       function setWithdrawSubmitLoading(isLoading) {
         const button = document.getElementById("withdrawSubmitButton");
@@ -20374,6 +21671,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         document.getElementById("withdrawRequestError").textContent = "";
         refreshWithdrawSubmitState();
       });
+      document.getElementById("withdrawAuthenticatorCode").addEventListener("input", () => {
+        document.getElementById("withdrawRequestError").textContent = "";
+        refreshWithdrawSubmitState();
+      });
       document.getElementById("withdrawConfirmCheck").addEventListener("change", () => {
         document.getElementById("withdrawRequestError").textContent = "";
         refreshWithdrawSubmitState();
@@ -20385,9 +21686,16 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         const errorNode = document.getElementById("withdrawRequestError");
         const network = selectedWithdrawNetwork;
         const password = document.getElementById("withdrawPasswordInput").value.trim();
+        const authenticatorCode = normalizeAuthenticatorInput(
+          document.getElementById("withdrawAuthenticatorCode").value.trim()
+        );
         if (!network) { setWithdrawStep(2); return; }
         if (!currentUser?.id) { errorNode.textContent = "يرجى تسجيل الدخول قبل طلب السحب."; return; }
         if (password.length < 6) { errorNode.textContent = "أدخل كلمة مرور الحساب (6 خانات على الأقل)."; return; }
+        if (accountAuthenticatorEnabled && !/^\d{6}$/.test(authenticatorCode)) {
+          errorNode.textContent = "أدخل رمز تطبيق المصادقة المكوّن من 6 أرقام.";
+          return;
+        }
         if (!document.getElementById("withdrawConfirmCheck").checked) { errorNode.textContent = "يرجى تأكيد صحة العنوان والشبكة."; return; }
         const amount = getWithdrawAmount();
         const fee = Number(network.dataset.feeAmount);
@@ -20408,6 +21716,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
             username: currentUser.username || "",
             email: currentUser.email || "",
             password,
+            authenticatorCode,
             amount, fee, net,
             asset: "USDT",
             network: network.dataset.network,
@@ -20443,6 +21752,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         document.getElementById("withdrawSuccessDescription").textContent =
           `استلمنا طلب سحب ${fxFormatAmount(amount)} USDT عبر ${network.dataset.name}. الصافي ${fxFormatAmount(net)} USDT، والطلب قيد المراجعة.`;
         document.getElementById("withdrawPasswordInput").value = "";
+        document.getElementById("withdrawAuthenticatorCode").value = "";
         setWithdrawStep(5);
       });
 
@@ -20769,6 +22079,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       const syncMobileBackHistoryOnClose = () => {};
 
       const handleMobileBackNavigation = () => {
+        if (typeof isAuthWizardOpen === "function" && isAuthWizardOpen()) {
+          authWizBack();
+          return true;
+        }
         if (activeLegalOverlay && !activeLegalOverlay.hidden) {
           closeLegalDocument(activeLegalOverlay);
           return true;
@@ -20797,6 +22111,30 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           return true;
         }
         if (accountDrawer.classList.contains("is-open")) {
+          const passwordResetView = document.getElementById("accountPasswordResetView");
+          if (passwordResetView && !passwordResetView.hidden) {
+            document.getElementById("accountPasswordResetBack")?.click();
+            return true;
+          }
+          if (authenticatorSetupPanel && !authenticatorSetupPanel.hidden) {
+            document.getElementById("authenticatorCancelButton")?.click();
+            return true;
+          }
+          const authenticatorView = document.getElementById("accountAuthenticatorView");
+          if (authenticatorView && !authenticatorView.hidden) {
+            document.getElementById("accountAuthenticatorBack")?.click();
+            return true;
+          }
+          const securityView = document.getElementById("accountSecurityView");
+          if (securityView && !securityView.hidden) {
+            document.getElementById("accountSecurityBack")?.click();
+            return true;
+          }
+          const personalView = document.getElementById("accountPersonalView");
+          if (personalView && !personalView.hidden) {
+            document.getElementById("accountPersonalBack")?.click();
+            return true;
+          }
           closeAccountDrawer();
           return true;
         }
@@ -20908,7 +22246,15 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         });
       }
 
-      restoreSavedSession();
+      const openAuthenticatorTabOnLoad = new URLSearchParams(window.location.search).get("fxmtView") === "authenticator";
+      const sessionRestorePromise = restoreSavedSession();
+      if (openAuthenticatorTabOnLoad) {
+        openAccountDrawer();
+        openAccountAuthenticator();
+        sessionRestorePromise.then(() => {
+          refreshAuthenticatorStatus();
+        });
+      }
 
       const launchSplash = document.getElementById("launchSplash");
       if (launchSplash) {
@@ -27440,6 +28786,9 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
   #accountDrawer.is-security-open .account-security-view {
     display: flex !important;
   }
+  #accountDrawer.is-security-open .account-security-view[hidden] {
+    display: none !important;
+  }
   #accountDrawer .account-password-reset-view {
     box-sizing: border-box;
     display: flex;
@@ -29955,5 +31304,1031 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     }
   }
 </style>
+<style>
+  #loginAuthenticatorField[hidden] { display:none !important; }
+  .account-security-panel--authenticator {
+    display:grid; gap:14px; padding:clamp(16px,4vw,22px);
+    border:1px solid rgba(194,160,255,.2); border-radius:22px;
+    background:linear-gradient(155deg,rgba(46,27,73,.56),rgba(17,17,42,.78));
+    box-shadow:0 14px 34px rgba(4,3,16,.2);
+  }
+  .account-security-panel--authenticator .account-security-panel-heading { align-items:flex-start; gap:13px; }
+  .account-security-panel--authenticator .account-security-panel-heading > div { min-width:0; }
+  .account-security-panel--authenticator .account-security-panel-heading h3 { margin:0 0 5px; font-size:clamp(16px,4.2vw,19px); line-height:1.4; }
+  .account-security-panel--authenticator .account-security-panel-heading p,
+  #authenticatorStatusNote { margin:0; line-height:1.7; overflow-wrap:anywhere; }
+  .account-security-panel--authenticator .account-security-auth-status {
+    display:inline-flex; align-items:center; gap:9px; width:fit-content; max-width:100%;
+    padding:8px 12px; border:1px solid rgba(250,190,76,.18); border-radius:999px;
+    background:rgba(254,180,52,.08); color:#f9d28b; font-size:13px; font-weight:750;
+  }
+  .account-security-panel--authenticator .account-security-auth-status.is-enabled {
+    color:#8ce7bf; border-color:rgba(53,211,154,.22); background:rgba(53,211,154,.08);
+  }
+  .account-security-panel--authenticator > .account-security-secondary,
+  .authenticator-setup-panel > .account-security-secondary,
+  .authenticator-start-details > button,
+  .authenticator-enrollment > .account-security-primary,
+  .authenticator-enrollment > .account-security-secondary {
+    width:100%; min-height:48px; box-sizing:border-box; padding:12px 16px;
+    border-radius:14px; font-size:15px; line-height:1.45;
+    white-space:normal; overflow-wrap:anywhere;
+  }
+  .authenticator-setup-panel {
+    display:grid; gap:16px; min-width:0; margin-top:2px; padding:clamp(14px,4vw,20px);
+    border:1px solid rgba(185,158,241,.22); border-radius:20px;
+    background:rgba(11,13,34,.78);
+  }
+  .authenticator-setup-panel[hidden], .authenticator-enrollment[hidden] { display:none !important; }
+  .authenticator-start-details, .authenticator-enrollment { display:grid; gap:12px; min-width:0; }
+  .authenticator-enrollment { padding-top:14px; border-top:1px solid rgba(180,202,255,.14); }
+  .authenticator-flow-page { display:grid; gap:13px; min-width:0; animation:authenticatorPageIn .22s ease both; }
+  .authenticator-flow-page[hidden] { display:none !important; }
+  .authenticator-flow-actions { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:9px; min-width:0; }
+  .authenticator-flow-actions > button,
+  #authenticatorVerifyBackButton { width:100%; min-height:46px; padding:10px 12px; border-radius:13px; font-size:13px; line-height:1.45; white-space:normal; }
+  .authenticator-flow-actions .account-security-secondary,
+  #authenticatorVerifyBackButton { border:1px solid rgba(190,166,231,.24); background:rgba(91,68,124,.14); color:#e9ddfa; }
+  .authenticator-flow-actions .account-security-primary { border:1px solid rgba(177,117,255,.35); background:linear-gradient(115deg,#8248d9,#c148b5); color:#fff; box-shadow:0 8px 22px rgba(152,68,208,.2); }
+  @keyframes authenticatorPageIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+  .authenticator-step-heading { display:flex; align-items:flex-start; gap:11px; min-width:0; }
+  .authenticator-step-number {
+    display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px;
+    border:1px solid rgba(218,177,255,.35); border-radius:50%;
+    background:rgba(157,96,222,.14); color:#e6c9ff; font-size:13px; font-weight:800;
+  }
+  .authenticator-step-heading > div { display:grid; gap:3px; min-width:0; }
+  .authenticator-step-heading strong { color:#fff; font-size:14px; line-height:1.5; }
+  .authenticator-step-heading small { color:#b9bad0; font-size:12px; line-height:1.6; }
+  .account-security-auth-status.is-enabled .account-security-status-dot {
+    background:#35d39a; box-shadow:0 0 0 4px rgba(53,211,154,.12),0 0 14px rgba(53,211,154,.48);
+  }
+  .authenticator-label { display:block; margin-top:2px; color:#e5e8f7; font-size:13px; font-weight:750; line-height:1.55; }
+  .authenticator-input {
+    width:100%; min-height:44px; box-sizing:border-box; padding:10px 12px;
+    border:1px solid rgba(143,173,230,.3); border-radius:11px;
+    background:rgba(5,12,30,.72); color:#fff; font:inherit; outline:none;
+  }
+  .authenticator-input:focus { border-color:#79b8ff; box-shadow:0 0 0 3px rgba(74,145,255,.15); }
+  .authenticator-qr-card {
+    display:grid; justify-items:center; gap:9px; width:min(100%,268px); box-sizing:border-box;
+    margin:0 auto; padding:14px; border:1px solid rgba(255,255,255,.82);
+    border-radius:20px; background:#fff; box-shadow:0 12px 28px rgba(0,0,0,.22);
+  }
+  .authenticator-qr-card[hidden] { display:none !important; }
+  .authenticator-qr { display:grid; place-items:center; width:100%; aspect-ratio:1; overflow:hidden; }
+  .authenticator-qr svg { display:block; width:100%; height:auto; max-width:240px; }
+  .authenticator-qr-status { margin:0; color:#54556a; font-size:11px; line-height:1.45; text-align:center; }
+  .authenticator-manual-key {
+    min-width:0; padding:12px; border:1px solid rgba(163,150,215,.19);
+    border-radius:14px; background:rgba(100,82,145,.09);
+  }
+  .authenticator-manual-key summary { color:#e0d3f5; font-size:13px; font-weight:700; line-height:1.6; cursor:pointer; }
+  .authenticator-manual-key[open] { display:grid; gap:10px; }
+  .authenticator-manual-key .account-security-note { margin:0; font-size:12px; line-height:1.65; }
+  .authenticator-secret-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:stretch; min-width:0; }
+  .authenticator-secret-row .authenticator-input { min-width:0; }
+  .authenticator-secret-row button { min-width:96px; min-height:44px; padding:9px 12px; border-radius:12px; }
+  .authenticator-store-block {
+    min-width:0; padding:11px 12px; border:1px solid rgba(163,150,215,.17);
+    border-radius:13px; background:rgba(100,82,145,.07);
+  }
+  .authenticator-store-block > summary {
+    color:#d8d0ea; font-size:12px; font-weight:700; line-height:1.55; cursor:pointer;
+  }
+  .authenticator-store-block[open] { display:grid; gap:10px; }
+  .authenticator-store-links { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .authenticator-store-links a {
+    display:block; min-width:0; padding:10px 8px; border:1px solid rgba(195,157,255,.2); border-radius:12px;
+    color:#b9dcff; background:rgba(58,111,201,.1); text-decoration:none;
+    font-size:11px; line-height:1.5; text-align:center; overflow-wrap:anywhere;
+  }
+  .authenticator-store-links a span { color:#cfbfdf; font-size:10px; }
+  .authenticator-store-links a:hover { border-color:rgba(118,171,255,.5); background:rgba(58,111,201,.2); }
+  #authenticatorSetupStatus { min-height:1.3em; margin:0; color:#ffb8c2; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+  #authenticatorSetupStatus.is-success { color:#8ce7bf; }
+  #authenticatorBeginButton[aria-busy="true"],
+  #authenticatorCompleteButton[aria-busy="true"],
+  #authenticatorDisableConfirm[aria-busy="true"] { opacity:.75; cursor:progress; }
+  @media (max-width:480px) {
+    .account-security-panel--authenticator { gap:12px; padding:15px; border-radius:19px; }
+    .authenticator-setup-panel { gap:14px; border-radius:17px; }
+    .authenticator-secret-row { grid-template-columns:1fr; }
+    .authenticator-secret-row button { width:100%; }
+    .authenticator-store-links { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .authenticator-qr-card { width:min(100%,240px); padding:12px; }
+  }
+
+  /* ===== معالج ربط المصادقة (صفحة لكل خطوة) ===== */
+  .aw { position:fixed; inset:0; z-index:2147481000; display:flex; flex-direction:column; background:#000; color:#fff;
+    height:100vh; height:100dvh; font-family:inherit; -webkit-tap-highlight-color:transparent; }
+  .aw[hidden], .aw-page[hidden], .aw [hidden] { display:none !important; }
+  .aw-header { position:relative; flex:none; display:flex; align-items:center; justify-content:flex-start; min-height:56px;
+    padding:calc(env(safe-area-inset-top,0px) + 10px) 20px 6px; }
+  .aw-back { width:44px; height:44px; margin-inline-start:-10px; display:grid; place-items:center; border:0; background:transparent; color:#fff; cursor:pointer; border-radius:50%; }
+  .aw-back:active { background:rgba(255,255,255,.1); }
+  .aw-title { position:absolute; inset-inline:0; top:calc(env(safe-area-inset-top,0px) + 10px); height:44px; margin:0; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:600; pointer-events:none; }
+  .aw-page { flex:1; min-height:0; display:flex; flex-direction:column; animation:awIn .26s ease both; }
+  @keyframes awIn { from { opacity:0; transform:translateX(-22px); } to { opacity:1; transform:none; } }
+  .aw-page.is-back { animation-name:awInBack; }
+  @keyframes awInBack { from { opacity:0; transform:translateX(22px); } to { opacity:1; transform:none; } }
+  .aw-scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px 20px 24px; }
+  .aw-center { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding-bottom:40px; }
+  .aw-hero { width:150px; height:150px; margin-bottom:34px; }
+  .aw-hero--ok { width:120px; height:120px; }
+  .aw-h1 { margin:0 0 18px; font-size:24px; font-weight:700; line-height:1.4; }
+  .aw-lead { margin:0; max-width:420px; color:#8b8b90; font-size:16px; line-height:1.95; }
+  .aw-step { margin:10px 0 26px; font-size:30px; font-weight:800; line-height:1; direction:ltr; text-align:right; }
+  .aw-step span { color:#6b6b70; font-weight:600; }
+  .aw-h2 { margin:0 0 12px; font-size:19px; font-weight:700; line-height:1.5; }
+  .aw-desc { margin:0 0 26px; color:#8b8b90; font-size:15px; line-height:1.9; }
+  .aw-label { display:block; margin:0 0 10px; color:#d6d6da; font-size:14px; font-weight:600; }
+  .aw-input { width:100%; box-sizing:border-box; min-height:56px; padding:12px 16px; border:1px solid #26262b; border-radius:16px; background:#0e0e11; color:#fff; font:inherit; font-size:16px; outline:none; }
+  .aw-input:focus { border-color:#1f6bff; box-shadow:0 0 0 3px rgba(31,107,255,.18); }
+  .aw-status { min-height:1.4em; margin:14px 0 0; color:#ff8a98; font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
+  .aw-status.is-success { color:#6fe0ae; }
+  .aw-foot { flex:none; padding:12px 20px calc(env(safe-area-inset-bottom,0px) + 22px); }
+  .aw-foot-note { margin:0 0 14px; color:#8b8b90; font-size:14px; line-height:1.7; }
+  .aw-btn { display:block; width:100%; min-height:58px; border:0; border-radius:999px; background:#1f6bff; color:#fff; font:inherit; font-size:17px; font-weight:600; cursor:pointer; transition:opacity .15s, transform .1s; }
+  .aw-btn:active { transform:scale(.985); }
+  .aw-btn:disabled { background:#0c2260; color:#5a6b99; cursor:not-allowed; }
+  .aw-btn[aria-busy="true"] { opacity:.7; cursor:progress; }
+  .aw-app { display:flex; align-items:center; gap:14px; margin-bottom:16px; padding:0 18px; min-height:74px; box-sizing:border-box; border:1px solid #1d1d22; border-radius:20px; color:#fff; text-decoration:none; background:#050507; }
+  .aw-app:active { background:#101015; }
+  .aw-app strong { flex:1; font-size:17px; font-weight:700; text-align:start; }
+  .aw-app-icon { flex:none; display:grid; place-items:center; width:40px; height:40px; }
+  .aw-dl { color:#8b8b90; flex:none; }
+  .aw-timeline { list-style:none; margin:0; padding:0; }
+  .aw-tl { position:relative; display:flex; gap:14px; padding-bottom:30px; }
+  .aw-tl::before { content:""; position:absolute; inset-inline-start:21px; top:48px; bottom:6px; width:2px; background:#232328; }
+  .aw-tl.is-last { padding-bottom:0; }
+  .aw-tl.is-last::before { display:none; }
+  .aw-tl-num { flex:none; width:44px; height:44px; display:grid; place-items:center; border-radius:50%; border:2px solid #26262b; color:#fff; font-size:19px; font-weight:600; background:#000; position:relative; z-index:1; }
+  .aw-tl.is-active .aw-tl-num, .aw-tl.is-done .aw-tl-num { background:#fff; color:#000; border-color:#fff; }
+  .aw-tl-body { flex:1; min-width:0; }
+  .aw-tl-body h3 { margin:6px 0 8px; font-size:17px; font-weight:700; line-height:1.5; color:#fff; }
+  .aw-tl.is-last h3 { color:#8b8b90; }
+  .aw-tl-body p { margin:0 0 14px; color:#8b8b90; font-size:14px; line-height:1.85; }
+  .aw-key { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding:14px 14px; border-radius:14px; background:#16161a; }
+  .aw-key-text { flex:1; min-width:0; font-size:15px; font-weight:600; letter-spacing:.04em; line-height:1.5; word-break:break-all; text-align:left; -webkit-user-select:all; user-select:all; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .aw-copy { flex:none; display:inline-flex; align-items:center; gap:5px; border:0; background:transparent; color:#2f7bff; font:inherit; font-size:14px; cursor:pointer; padding:4px; }
+  .aw-sr { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; overflow:hidden; }
+  .aw-qr-card { width:176px; padding:9px; border-radius:14px; background:#fff; margin:0 0 6px; }
+  .aw-qr { display:block; width:100%; aspect-ratio:1; }
+  .aw-qr svg { display:block; width:100%; height:100%; }
+  .aw-qr-status { margin:6px 0 0 !important; font-size:12px !important; line-height:1.6 !important; }
+  .aw-plus-demo { display:flex; justify-content:flex-start; align-items:flex-end; height:120px; padding:0 14px 14px; box-sizing:border-box; border:3px solid #17171b; border-top:0; border-radius:0 0 26px 26px; margin-top:4px; }
+  .aw-plus-tile { display:grid; place-items:center; width:76px; height:60px; border-radius:18px; background:#1a1a1e; }
+  .aw-otp { position:relative; margin-top:6px; }
+  .aw-otp-boxes { display:flex; gap:10px; }
+  .aw-otp-boxes span { flex:1; min-width:0; height:66px; display:grid; place-items:center; border:1.5px solid #222226; border-radius:14px; background:#050507; font-size:26px; font-weight:700; transition:border-color .12s; }
+  .aw-otp-boxes span.is-active { border-color:#4a4a52; box-shadow:0 0 0 1px #4a4a52 inset; }
+  .aw-otp-boxes span.is-filled { border-color:#1f6bff; }
+  .aw-otp-input { position:absolute; inset:0; width:100%; height:100%; opacity:0; border:0; background:transparent; font-size:16px; letter-spacing:1em; caret-color:transparent; cursor:text; z-index:1; }
+  @media (prefers-reduced-motion:reduce) { .aw-page { animation:none; } }
+  .aw[dir="ltr"] .aw-back svg { transform:scaleX(-1); }
+  .aw[dir="ltr"] .aw-step { text-align:left; }
+  html.aw-lock, html.aw-lock body { overflow:hidden !important; }
+  html[data-fxmt-view="authenticator"], html[data-fxmt-view="authenticator"] body {
+    min-height:100%; background:#11091e; color:#fff7ff;
+  }
+  html[data-fxmt-view="authenticator"] body {
+    background:
+      radial-gradient(ellipse at 12% 20%,rgba(251,73,190,.19),transparent 30%),
+      radial-gradient(ellipse at 88% 30%,rgba(151,74,255,.2),transparent 34%),
+      radial-gradient(ellipse at 55% 88%,rgba(211,61,174,.12),transparent 35%),
+      repeating-linear-gradient(0deg,transparent 0 92px,rgba(225,133,255,.022) 92px 93px),
+      linear-gradient(150deg,#080511 0%,#11091e 48%,#090611 100%);
+    background-attachment:fixed;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+  }
+  html[data-fxmt-view="authenticator"] .aw {
+    background:
+      radial-gradient(ellipse at 12% 20%,rgba(251,73,190,.19),transparent 30%),
+      radial-gradient(ellipse at 88% 30%,rgba(151,74,255,.2),transparent 34%),
+      radial-gradient(ellipse at 55% 88%,rgba(211,61,174,.12),transparent 35%),
+      repeating-linear-gradient(0deg,transparent 0 92px,rgba(225,133,255,.022) 92px 93px),
+      linear-gradient(150deg,#080511 0%,#11091e 48%,#090611 100%);
+    color:#fff7ff;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    isolation:isolate;
+    overflow:hidden;
+  }
+  html[data-fxmt-view="authenticator"] .aw::before,
+  html[data-fxmt-view="authenticator"] .aw::after {
+    content:"";
+    position:fixed;
+    z-index:0;
+    top:50%;left:50%;
+    pointer-events:none;
+    border:1px solid rgba(184,119,255,.36);
+    border-radius:50%;
+    box-shadow:0 0 16px rgba(181,106,255,.16),inset 0 0 16px rgba(105,205,255,.06);
+  }
+  html[data-fxmt-view="authenticator"] .aw::before {
+    width:min(122vw,1000px);
+    height:min(84vh,780px);
+    border-top-color:rgba(103,221,255,.72);
+    border-bottom-color:rgba(255,112,214,.62);
+    opacity:.58;
+    transform:translate(-50%,-50%) rotate(-24deg) scaleY(.72);
+    animation:auth-neon-orbit-a 34s linear infinite;
+  }
+  html[data-fxmt-view="authenticator"] .aw::after {
+    width:min(98vw,840px);
+    height:min(67vh,620px);
+    border-right-color:rgba(255,120,219,.66);
+    border-left-color:rgba(104,199,255,.68);
+    opacity:.44;
+    transform:translate(-50%,-50%) rotate(38deg) scaleY(.66);
+    animation:auth-neon-orbit-b 46s linear infinite reverse;
+  }
+  @keyframes auth-neon-orbit-a {
+    from { transform:translate(-50%,-50%) rotate(-24deg) scaleY(.72); }
+    to { transform:translate(-50%,-50%) rotate(336deg) scaleY(.72); }
+  }
+  @keyframes auth-neon-orbit-b {
+    from { transform:translate(-50%,-50%) rotate(38deg) scaleY(.66); }
+    to { transform:translate(-50%,-50%) rotate(398deg) scaleY(.66); }
+  }
+  html[data-fxmt-view="authenticator"] .aw-header,
+  html[data-fxmt-view="authenticator"] .aw-page {
+    position:relative;
+    z-index:1;
+  }
+  html[data-fxmt-view="authenticator"] .aw-header {
+    border-bottom:1px solid rgba(218,139,255,.3);
+    background:linear-gradient(180deg,rgba(17,9,30,.94) 68%,rgba(17,9,30,0));
+    backdrop-filter:blur(16px);
+  }
+  html[data-fxmt-view="authenticator"] .aw-back,
+  html[data-fxmt-view="authenticator"] .aw-title,
+  html[data-fxmt-view="authenticator"] .aw-h1,
+  html[data-fxmt-view="authenticator"] .aw-h2,
+  html[data-fxmt-view="authenticator"] .aw-step,
+  html[data-fxmt-view="authenticator"] .aw-tl-body h3 {
+    color:#fff7ff;
+  }
+  html[data-fxmt-view="authenticator"] .aw-lead,
+  html[data-fxmt-view="authenticator"] .aw-desc,
+  html[data-fxmt-view="authenticator"] .aw-foot-note,
+  html[data-fxmt-view="authenticator"] .aw-tl-body p {
+    color:#c6aed8;
+  }
+  html[data-fxmt-view="authenticator"] .aw-label { color:#fff7ff; }
+  html[data-fxmt-view="authenticator"] .aw-input {
+    border-color:rgba(218,139,255,.3);
+    background:rgba(29,16,47,.82);
+    color:#fff;
+  }
+  html[data-fxmt-view="authenticator"] .aw-input:focus {
+    border-color:#b75cff;
+    box-shadow:0 0 0 3px rgba(183,92,255,.18),0 0 18px rgba(183,92,255,.12);
+  }
+  html[data-fxmt-view="authenticator"] .aw-btn {
+    border:1px solid rgba(231,179,255,.72);
+    background:linear-gradient(125deg,#c76eff,#9355e8 58%,#5e65e8);
+    box-shadow:0 0 24px rgba(185,91,255,.3),inset 0 1px rgba(255,255,255,.32);
+  }
+  html[data-fxmt-view="authenticator"] .aw-btn:disabled {
+    background:#372347; color:#a995b9; box-shadow:none;
+  }
+  html[data-fxmt-view="authenticator"] .aw-app {
+    border-color:rgba(218,135,255,.35);
+    background:linear-gradient(145deg,rgba(72,39,96,.34),rgba(29,16,47,.86));
+    box-shadow:0 16px 38px rgba(8,2,18,.38),0 0 22px rgba(182,74,255,.11),inset 0 1px rgba(255,255,255,.1);
+    color:#fff7ff;
+  }
+  html[data-fxmt-view="authenticator"] .aw-app:active { background:linear-gradient(120deg,rgba(164,78,232,.3),rgba(205,62,174,.22)); }
+  html[data-fxmt-view="authenticator"] .aw-dl { color:#b75cff; }
+  html[data-fxmt-view="authenticator"] .aw-tl::before { background:rgba(218,139,255,.3); }
+  html[data-fxmt-view="authenticator"] .aw-tl-num {
+    border-color:rgba(218,139,255,.3);
+    background:linear-gradient(145deg,rgba(119,54,154,.35),rgba(70,31,108,.42));
+    color:#e8c4ff;
+  }
+  html[data-fxmt-view="authenticator"] .aw-tl.is-active .aw-tl-num,
+  html[data-fxmt-view="authenticator"] .aw-tl.is-done .aw-tl-num {
+    border-color:rgba(231,179,255,.72);
+    background:linear-gradient(125deg,#c76eff,#9355e8 58%,#5e65e8);
+    color:#fff;
+    box-shadow:0 0 13px rgba(230,96,255,.35);
+  }
+  html[data-fxmt-view="authenticator"] .aw-key {
+    border:1px solid rgba(218,135,255,.35);
+    background:linear-gradient(145deg,rgba(72,39,96,.34),rgba(29,16,47,.86));
+    box-shadow:0 16px 38px rgba(8,2,18,.22),0 0 22px rgba(182,74,255,.08);
+  }
+  html[data-fxmt-view="authenticator"] .aw-copy { color:#b75cff; }
+  html[data-fxmt-view="authenticator"] .aw-otp-boxes span {
+    border-color:rgba(218,139,255,.3);
+    background:linear-gradient(145deg,rgba(72,39,96,.34),rgba(29,16,47,.86));
+    color:#fff7ff;
+  }
+  html[data-fxmt-view="authenticator"] .aw-otp-boxes span.is-active {
+    border-color:#b75cff;
+    box-shadow:0 0 0 1px #b75cff inset,0 0 16px rgba(183,92,255,.18);
+  }
+  html[data-fxmt-view="authenticator"] .aw-otp-boxes span.is-filled { border-color:#f178dc; }
+  html[data-fxmt-view="authenticator"] .aw :focus-visible {
+    outline:2px solid #efa7ff; outline-offset:3px;
+  }
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-panel--authenticator {
+    border-color:rgba(218,135,255,.35);
+    background:linear-gradient(145deg,rgba(72,39,96,.34),rgba(29,16,47,.86));
+    box-shadow:0 16px 38px rgba(8,2,18,.38),0 0 22px rgba(182,74,255,.11),inset 0 1px rgba(255,255,255,.1);
+  }
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-panel-heading h3,
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-panel-heading p,
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-note {
+    color:#fff7ff;
+  }
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-note {
+    border-color:rgba(218,139,255,.3);
+    background:rgba(183,92,255,.08);
+  }
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-secondary,
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-primary {
+    border-color:rgba(231,179,255,.42);
+    background:linear-gradient(125deg,#c76eff,#9355e8 58%,#5e65e8);
+    color:#fff;
+    box-shadow:0 8px 22px rgba(77,72,155,.2),inset 0 1px rgba(255,255,255,.16);
+  }
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-auth-status {
+    border-color:rgba(218,139,255,.3);
+    background:rgba(183,92,255,.1);
+    color:#c6aed8;
+  }
+  html[data-fxmt-view="authenticator"] #accountDrawer .account-security-auth-status.is-enabled {
+    border-color:rgba(114,229,181,.28);
+    background:rgba(114,229,181,.1);
+    color:#72e5b5;
+  }
+  @media (prefers-reduced-motion:reduce) {
+    html[data-fxmt-view="authenticator"] .aw::before,
+    html[data-fxmt-view="authenticator"] .aw::after {
+      animation:none!important;
+    }
+  }
+</style>
+<style id="fxmt-security-center-plum-neon-theme">
+  /* Keep the complete security area on the Sync-inspired dark plum palette. */
+  #accountDrawer .account-security-view,
+  #accountDrawer .account-password-reset-view {
+    position:relative;
+    isolation:isolate;
+    overflow:hidden;
+    border-radius:22px;
+    color:#fff7ff;
+    background:
+      radial-gradient(ellipse at 12% 18%,rgba(244,73,189,.13),transparent 38%),
+      radial-gradient(ellipse at 88% 34%,rgba(145,76,255,.16),transparent 43%),
+      radial-gradient(ellipse at 52% 96%,rgba(210,65,174,.1),transparent 42%),
+      repeating-linear-gradient(0deg,transparent 0 92px,rgba(225,133,255,.022) 92px 93px),
+      linear-gradient(150deg,#080511 0%,#11091e 48%,#090611 100%);
+  }
+  #accountDrawer .account-security-view::before,
+  #accountDrawer .account-security-view::after,
+  #accountDrawer .account-password-reset-view::before,
+  #accountDrawer .account-password-reset-view::after {
+    content:"";
+    position:absolute;
+    z-index:0;
+    top:49%;
+    left:50%;
+    border:1px solid rgba(184,119,255,.32);
+    border-radius:50%;
+    pointer-events:none;
+    box-shadow:0 0 18px rgba(181,106,255,.16),inset 0 0 16px rgba(241,120,220,.06);
+  }
+  #accountDrawer .account-security-view::before,
+  #accountDrawer .account-password-reset-view::before {
+    width:min(122vw,1000px);
+    height:min(84vh,780px);
+    border-top-color:rgba(255,112,214,.68);
+    border-bottom-color:rgba(183,92,255,.66);
+    opacity:.52;
+    transform:translate(-50%,-50%) rotate(-24deg) scaleY(.72);
+    animation:fxmtSecurityOrbitA 34s linear infinite;
+  }
+  #accountDrawer .account-security-view::after,
+  #accountDrawer .account-password-reset-view::after {
+    width:min(98vw,840px);
+    height:min(67vh,620px);
+    border-right-color:rgba(241,120,220,.66);
+    border-left-color:rgba(151,93,255,.62);
+    opacity:.4;
+    transform:translate(-50%,-50%) rotate(38deg) scaleY(.66);
+    animation:fxmtSecurityOrbitB 46s linear infinite reverse;
+  }
+  #accountDrawer .account-security-view > *,
+  #accountDrawer .account-password-reset-view > * {
+    position:relative;
+    z-index:1;
+  }
+  #accountDrawer .account-security-view .account-personal-header h2,
+  #accountDrawer .account-password-reset-view .account-personal-header h2 {
+    color:#fff7ff;
+    text-shadow:0 0 18px rgba(197,91,255,.2);
+  }
+  #accountDrawer .account-security-view .account-personal-header p,
+  #accountDrawer .account-password-reset-view .account-personal-header p {
+    color:#c6aed8;
+  }
+  #accountDrawer .account-security-view .account-personal-back,
+  #accountDrawer .account-password-reset-view .account-personal-back {
+    border:1px solid rgba(218,139,255,.28);
+    background:rgba(70,34,94,.36);
+    color:#f1d5ff;
+    box-shadow:0 0 16px rgba(183,92,255,.1);
+  }
+  #accountDrawer .account-security-view .account-security-panel,
+  #accountDrawer .account-password-reset-view .account-security-panel {
+    border-color:rgba(218,139,255,.3);
+    background:
+      radial-gradient(120% 90% at 100% 0%,rgba(183,92,255,.13),transparent 60%),
+      linear-gradient(145deg,rgba(68,37,89,.62),rgba(20,11,34,.82));
+    box-shadow:0 14px 34px rgba(8,2,18,.32),0 0 20px rgba(183,92,255,.08),inset 0 1px rgba(255,255,255,.08);
+  }
+  #accountDrawer .account-security-view .account-security-panel-trigger:hover {
+    background:rgba(183,92,255,.09);
+  }
+  #accountDrawer .account-security-view .account-security-panel-icon {
+    border-color:rgba(218,139,255,.34);
+    color:#f0c9ff;
+    background:linear-gradient(145deg,rgba(190,83,202,.34),rgba(91,54,167,.44));
+    box-shadow:0 0 18px rgba(183,92,255,.15),inset 0 1px rgba(255,255,255,.14);
+  }
+  #accountDrawer .account-security-view .account-security-note,
+  #accountDrawer .account-password-reset-view .account-security-note {
+    border-color:rgba(218,139,255,.2);
+    background:rgba(155,76,211,.08);
+    color:#d5c0e5;
+  }
+  #accountDrawer .account-security-view .account-security-auth-status {
+    border-color:rgba(218,139,255,.28);
+    background:rgba(183,92,255,.1);
+    color:#e3c5f8;
+  }
+  #accountDrawer .account-security-view .account-security-status-dot {
+    background:#c76eff;
+    box-shadow:0 0 10px rgba(199,110,255,.5);
+  }
+  #accountDrawer .account-security-view .account-security-auth-status.is-enabled {
+    border-color:rgba(114,229,181,.28);
+    background:rgba(114,229,181,.09);
+    color:#8ce7bf;
+  }
+  #accountDrawer .account-security-view .account-security-auth-status.is-enabled .account-security-status-dot {
+    background:#72e5b5;
+    box-shadow:0 0 12px rgba(114,229,181,.5);
+  }
+  #accountDrawer .account-security-view .account-security-primary,
+  #accountDrawer .account-security-view .account-security-secondary,
+  #accountDrawer .account-password-reset-view .account-security-primary,
+  #accountDrawer .account-password-reset-view .account-security-secondary {
+    border-color:rgba(231,179,255,.42);
+    background:linear-gradient(125deg,#c76eff,#9355e8 58%,#c74db7);
+    color:#fff;
+    box-shadow:0 8px 22px rgba(126,57,172,.22),inset 0 1px rgba(255,255,255,.16);
+  }
+  #accountDrawer .account-security-view .account-security-secondary,
+  #accountDrawer .account-password-reset-view .account-security-secondary {
+    background:linear-gradient(145deg,rgba(162,75,215,.2),rgba(79,37,116,.32));
+  }
+  #accountDrawer .account-security-view .account-security-field input,
+  #accountDrawer .account-password-reset-view .account-security-field input {
+    border-color:rgba(218,139,255,.26);
+    background:rgba(9,5,21,.72);
+    color:#fff7ff;
+  }
+  #accountDrawer .account-security-view .account-security-field input:focus,
+  #accountDrawer .account-password-reset-view .account-security-field input:focus,
+  #accountDrawer .authenticator-input:focus {
+    border-color:rgba(241,120,220,.78);
+    box-shadow:0 0 0 3px rgba(183,92,255,.17),0 0 16px rgba(241,120,220,.1);
+  }
+  #accountDrawer .authenticator-setup-panel {
+    border-color:rgba(218,139,255,.24);
+    background:linear-gradient(145deg,rgba(52,27,72,.76),rgba(15,9,27,.86));
+    box-shadow:inset 0 1px rgba(255,255,255,.05);
+  }
+  #accountDrawer .authenticator-enrollment {
+    border-top-color:rgba(218,139,255,.2);
+  }
+  #accountDrawer .authenticator-input {
+    border-color:rgba(218,139,255,.28);
+    background:rgba(9,5,21,.72);
+    color:#fff7ff;
+  }
+  #accountDrawer .authenticator-input:focus {
+    border-color:rgba(241,120,220,.78);
+    box-shadow:0 0 0 3px rgba(183,92,255,.17);
+  }
+  #accountDrawer .authenticator-step-number {
+    border-color:rgba(218,139,255,.4);
+    background:rgba(157,96,222,.18);
+    color:#f0c9ff;
+  }
+  #accountDrawer .authenticator-step-heading small,
+  #accountDrawer .authenticator-label {
+    color:#d5c0e5;
+  }
+  #accountDrawer .authenticator-manual-key,
+  #accountDrawer .authenticator-store-block {
+    border-color:rgba(218,139,255,.2);
+    background:rgba(73,42,99,.16);
+  }
+  #accountDrawer .authenticator-store-links a {
+    border-color:rgba(218,139,255,.24);
+    background:rgba(115,58,153,.15);
+    color:#efc9ff;
+  }
+  #accountDrawer .authenticator-store-links a:hover {
+    border-color:rgba(241,120,220,.58);
+    background:rgba(183,92,255,.2);
+  }
+
+  /* The full-screen setup wizard uses the same palette and animated ovals. */
+  .aw {
+    position:fixed;
+    isolation:isolate;
+    overflow:hidden;
+    color:#fff7ff;
+    background:
+      radial-gradient(ellipse at 12% 20%,rgba(251,73,190,.18),transparent 32%),
+      radial-gradient(ellipse at 88% 30%,rgba(151,74,255,.19),transparent 36%),
+      radial-gradient(ellipse at 55% 88%,rgba(211,61,174,.12),transparent 38%),
+      repeating-linear-gradient(0deg,transparent 0 92px,rgba(225,133,255,.022) 92px 93px),
+      linear-gradient(150deg,#080511 0%,#11091e 48%,#090611 100%);
+  }
+  .aw::before,
+  .aw::after {
+    content:"";
+    position:absolute;
+    z-index:0;
+    top:50%;
+    left:50%;
+    border:1px solid rgba(184,119,255,.34);
+    border-radius:50%;
+    pointer-events:none;
+    box-shadow:0 0 18px rgba(181,106,255,.17),inset 0 0 16px rgba(241,120,220,.06);
+  }
+  .aw::before {
+    width:min(122vw,1000px);
+    height:min(84vh,780px);
+    border-top-color:rgba(255,112,214,.7);
+    border-bottom-color:rgba(183,92,255,.66);
+    opacity:.52;
+    transform:translate(-50%,-50%) rotate(-24deg) scaleY(.72);
+    animation:fxmtSecurityOrbitA 34s linear infinite;
+  }
+  .aw::after {
+    width:min(98vw,840px);
+    height:min(67vh,620px);
+    border-right-color:rgba(241,120,220,.66);
+    border-left-color:rgba(151,93,255,.62);
+    opacity:.42;
+    transform:translate(-50%,-50%) rotate(38deg) scaleY(.66);
+    animation:fxmtSecurityOrbitB 46s linear infinite reverse;
+  }
+  .aw-header,
+  .aw-page {
+    position:relative;
+    z-index:1;
+  }
+  .aw-header {
+    border-bottom:1px solid rgba(218,139,255,.28);
+    background:linear-gradient(180deg,rgba(17,9,30,.94) 68%,rgba(17,9,30,0));
+  }
+  .aw-back,
+  .aw-title,
+  .aw-h1,
+  .aw-h2,
+  .aw-step,
+  .aw-tl-body h3 {
+    color:#fff7ff;
+  }
+  .aw-lead,
+  .aw-desc,
+  .aw-foot-note,
+  .aw-tl-body p {
+    color:#c6aed8;
+  }
+  .aw-label { color:#f0dfff; }
+  .aw-input {
+    border-color:rgba(218,139,255,.28);
+    background:rgba(11,6,25,.82);
+    color:#fff7ff;
+  }
+  .aw-input:focus {
+    border-color:#f178dc;
+    box-shadow:0 0 0 3px rgba(183,92,255,.18);
+  }
+  .aw-btn {
+    border:1px solid rgba(231,179,255,.58);
+    background:linear-gradient(125deg,#c76eff,#9355e8 58%,#c74db7);
+    color:#fff;
+    box-shadow:0 8px 24px rgba(126,57,172,.28),inset 0 1px rgba(255,255,255,.2);
+  }
+  .aw-btn:disabled {
+    border-color:rgba(218,139,255,.14);
+    background:linear-gradient(125deg,#573578,#403063);
+    color:#c6aed8;
+  }
+  .aw-app,
+  .aw-key {
+    border-color:rgba(218,139,255,.24);
+    background:linear-gradient(145deg,rgba(67,38,89,.68),rgba(19,12,32,.86));
+    color:#fff7ff;
+  }
+  .aw-dl,
+  .aw-copy { color:#f178dc; }
+  .aw-tl::before { background:rgba(218,139,255,.3); }
+  .aw-tl-num {
+    border-color:rgba(218,139,255,.38);
+    background:rgba(47,24,68,.92);
+    color:#f0dfff;
+  }
+  .aw-tl.is-active .aw-tl-num,
+  .aw-tl.is-done .aw-tl-num {
+    border-color:#f178dc;
+    background:linear-gradient(135deg,#c76eff,#9355e8);
+    color:#fff;
+  }
+  .aw-otp-boxes span {
+    border-color:rgba(218,139,255,.25);
+    background:rgba(9,5,21,.9);
+    color:#fff7ff;
+  }
+  .aw-otp-boxes span.is-active,
+  .aw-otp-boxes span.is-filled {
+    border-color:#f178dc;
+    box-shadow:0 0 12px rgba(241,120,220,.16);
+  }
+  @keyframes fxmtSecurityOrbitA {
+    from { transform:translate(-50%,-50%) rotate(-24deg) scaleY(.72); }
+    to { transform:translate(-50%,-50%) rotate(336deg) scaleY(.72); }
+  }
+  @keyframes fxmtSecurityOrbitB {
+    from { transform:translate(-50%,-50%) rotate(38deg) scaleY(.66); }
+    to { transform:translate(-50%,-50%) rotate(398deg) scaleY(.66); }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    #accountDrawer .account-security-view::before,
+    #accountDrawer .account-security-view::after,
+    #accountDrawer .account-password-reset-view::before,
+    #accountDrawer .account-password-reset-view::after,
+    .aw::before,
+    .aw::after {
+      animation:none!important;
+    }
+  }
+  /* Flat, continuous security pages instead of nested cards. */
+  #accountDrawer .account-security-view {
+    gap:0;
+  }
+  #accountDrawer .account-security-view .account-security-panel,
+  #accountDrawer .account-password-reset-view .account-security-panel {
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel--password {
+    overflow:visible;
+    padding:0 0 8px!important;
+    border-bottom:1px solid rgba(218,139,255,.2)!important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-trigger {
+    padding:22px 4px;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-trigger:hover {
+    background:rgba(183,92,255,.06);
+  }
+  #accountDrawer .account-security-view .account-security-panel-icon {
+    border:0!important;
+    border-radius:0;
+    background:transparent!important;
+    box-shadow:none!important;
+    color:#efc9ff;
+  }
+  #accountDrawer #accountAuthenticatorView .account-security-panel--authenticator {
+    gap:18px;
+    padding:20px 2px 0!important;
+  }
+  #accountDrawer #accountPasswordResetView .account-security-panel {
+    padding:18px 2px 0!important;
+  }
+  #accountDrawer .account-security-view .account-security-auth-status {
+    width:fit-content;
+    padding:2px 0;
+    border:0!important;
+    border-radius:0;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #accountDrawer .account-security-view .account-security-note {
+    padding:0;
+    border:0!important;
+    border-radius:0;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #accountDrawer .account-security-view .authenticator-setup-panel {
+    padding:4px 0 0!important;
+    border:0!important;
+    border-radius:0;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #accountDrawer .account-security-view .authenticator-manual-key,
+  #accountDrawer .account-security-view .authenticator-store-block {
+    padding:8px 0;
+    border:0!important;
+    border-radius:0;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #accountDrawer .account-security-view .authenticator-enrollment {
+    border-top-color:rgba(218,139,255,.2);
+  }
+</style>
+
+<style id="fxmt-security-center-account-menu-match">
+  /* Match security pages to the account drawer and its individual menu cards. */
+  #accountDrawer .account-security-view,
+  #accountDrawer .account-password-reset-view {
+    overflow: visible !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+  #accountDrawer .account-security-view::before,
+  #accountDrawer .account-security-view::after,
+  #accountDrawer .account-password-reset-view::before,
+  #accountDrawer .account-password-reset-view::after {
+    display: none !important;
+    content: none !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel {
+    box-sizing: border-box !important;
+    min-height: 68px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(218, 135, 255, 0.35) !important;
+    border-radius: 18px !important;
+    background: linear-gradient(145deg, rgba(72, 39, 96, 0.34), rgba(29, 16, 47, 0.86)) !important;
+    box-shadow: 0 16px 38px rgba(8, 2, 18, 0.38), 0 0 22px rgba(182, 74, 255, 0.11), inset 0 1px rgba(255, 255, 255, 0.1) !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-trigger {
+    box-sizing: border-box !important;
+    min-height: 68px !important;
+    padding: 12px 13px !important;
+    border-radius: inherit;
+    color: #fff7ff !important;
+    background: transparent !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-trigger:hover,
+  #accountDrawer #accountSecurityView .account-security-panel-trigger:focus-visible {
+    background: linear-gradient(120deg, rgba(164, 78, 232, 0.3), rgba(205, 62, 174, 0.22)) !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-icon {
+    box-sizing: border-box !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    border: 1px solid rgba(218, 139, 255, 0.3) !important;
+    border-radius: 11px !important;
+    background: linear-gradient(145deg, rgba(119, 54, 154, 0.35), rgba(70, 31, 108, 0.42)) !important;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.12) !important;
+    color: #e8c4ff !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-trigger-copy strong {
+    color: #fff7ff !important;
+    font-size: 13px !important;
+    text-shadow: none !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-panel-trigger-copy small {
+    color: #c6aed8 !important;
+    font-size: 9px !important;
+    line-height: 1.45 !important;
+    text-shadow: none !important;
+  }
+  #accountDrawer #accountSecurityView .account-security-trigger-arrow {
+    color: #e8c4ff !important;
+  }
+  @media (max-width: 380px) {
+    #accountDrawer #accountSecurityView .account-security-panel-trigger {
+      gap: 9px !important;
+      padding-inline: 10px !important;
+    }
+    #accountDrawer #accountSecurityView .account-security-panel-trigger-copy strong {
+      font-size: 12px !important;
+    }
+    #accountDrawer #accountSecurityView .account-security-panel-trigger-copy small {
+      font-size: 8px !important;
+    }
+  }
+</style>
+
+
+<style id="fxmt-authwizard-copy-compact">
+  /* Compact authenticator setup screen: keep the key steps and QR visible without scrolling. */
+  #authWizard .aw-page[data-aw-page="connect"] {
+    overflow: hidden !important;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-scroll {
+    box-sizing: border-box;
+    min-height: 0;
+    overflow: hidden !important;
+    padding: 5px 16px 2px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-step {
+    margin: 2px 0 10px;
+    font-size: 25px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl {
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl::before {
+    inset-inline-start: 15px;
+    top: 34px;
+    bottom: 3px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl.is-last {
+    padding-bottom: 0;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl-num {
+    width: 32px;
+    height: 32px;
+    border-width: 1.5px;
+    font-size: 15px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl-body h3 {
+    margin: 1px 0 4px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl-body p {
+    margin: 0 0 7px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-key {
+    gap: 7px;
+    margin: 0 0 6px;
+    padding: 8px 10px;
+    border-radius: 12px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-key-text {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-copy {
+    gap: 4px;
+    padding: 3px;
+    font-size: 12px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-qr-card {
+    box-sizing: border-box;
+    width: min(146px, 36vw);
+    margin: 2px auto 0;
+    padding: 7px;
+    border-radius: 12px;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-qr-status {
+    margin-top: 3px !important;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-plus-demo {
+    display: none !important;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-tl.is-last .aw-tl-body p {
+    margin-bottom: 0;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-status:empty {
+    display: none;
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-foot {
+    padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
+  #authWizard .aw-page[data-aw-page="connect"] .aw-btn {
+    min-height: 50px;
+    font-size: 15px;
+  }
+  #authWizard .aw-page[data-aw-page="password"] .aw-desc {
+    margin-bottom: 18px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  @media (max-height: 720px) {
+    #authWizard .aw-page[data-aw-page="connect"] .aw-scroll {
+      padding: 3px 14px 1px;
+    }
+    #authWizard .aw-page[data-aw-page="connect"] .aw-step {
+      margin-bottom: 6px;
+      font-size: 22px;
+    }
+    #authWizard .aw-page[data-aw-page="connect"] .aw-tl {
+      padding-bottom: 5px;
+    }
+    #authWizard .aw-page[data-aw-page="connect"] .aw-tl-body p {
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    #authWizard .aw-page[data-aw-page="connect"] .aw-qr-card {
+      width: min(126px, 33vw);
+      padding: 6px;
+    }
+    #authWizard .aw-page[data-aw-page="connect"] .aw-foot {
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    }
+    #authWizard .aw-page[data-aw-page="connect"] .aw-btn {
+      min-height: 46px;
+    }
+  }
+</style>
+
+<style id="fxmt-account-app-lock-style">
+  #accountDrawer .account-app-lock-row {
+    min-height: 68px;
+    cursor: default;
+  }
+  #accountDrawer .account-app-lock-row:hover {
+    transform: none;
+  }
+  #accountDrawer .account-app-lock-state {
+    flex: 0 0 auto;
+    color: var(--account-sync-muted);
+    font-size: 9px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  #accountDrawer .account-app-lock-state.is-enabled {
+    color: #8ce7bf;
+  }
+  #accountDrawer .account-app-lock-switch {
+    position: relative;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid rgba(218,139,255,.36);
+    border-radius: 999px;
+    background: rgba(29,16,47,.94);
+    box-shadow: inset 0 1px rgba(255,255,255,.08);
+    cursor: pointer;
+    transition: background .18s ease, border-color .18s ease, opacity .18s ease;
+  }
+  #accountDrawer .account-app-lock-switch > span {
+    position: absolute;
+    inset-inline-start: 3px;
+    top: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #d5c0e5;
+    box-shadow: 0 1px 5px rgba(0,0,0,.3);
+    transition: transform .18s ease, background .18s ease;
+  }
+  html[dir="rtl"] #accountDrawer .account-app-lock-switch.is-enabled > span {
+    transform: translateX(-16px);
+  }
+  html[dir="ltr"] #accountDrawer .account-app-lock-switch.is-enabled > span {
+    transform: translateX(16px);
+  }
+  #accountDrawer .account-app-lock-switch.is-enabled {
+    border-color: rgba(114,229,181,.56);
+    background: rgba(66,163,123,.42);
+  }
+  #accountDrawer .account-app-lock-switch.is-enabled > span {
+    background: #b6ffd8;
+  }
+  #accountDrawer .account-app-lock-switch:focus-visible {
+    outline: 2px solid rgba(241,120,220,.8);
+    outline-offset: 3px;
+  }
+  #accountDrawer .account-app-lock-switch:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+  }
+  #accountDrawer .account-app-lock-message:empty {
+    display: none;
+  }
+  #accountDrawer .account-app-lock-message {
+    color: #d5c0e5;
+    font-size: 8px !important;
+    line-height: 1.5 !important;
+    white-space: normal;
+  }
+</style>
+
 </body>
 </html>
