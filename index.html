@@ -10290,19 +10290,29 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   html.fxmt-app-lock-pending body > :not(#fxmtAppLockOverlay) {
     visibility: hidden !important; pointer-events: none !important;
   }
+  #fxmtAppLockError {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    box-sizing: border-box; margin: 0; padding: 28px;
+    color: #eadcf4; font: 14px/1.8 Inter, "Noto Sans Arabic", "Segoe UI", sans-serif;
+    text-align: center;
+  }
+  #fxmtAppLockError[hidden] { display: none !important; }
 </style>
 <script>
   (function () {
     try {
-      localStorage.setItem("fxmt-device-app-lock-enabled", "1");
+      if (localStorage.getItem("fxmt-device-app-lock-enabled") === "1") {
+        document.documentElement.classList.add("fxmt-app-lock-pending");
+      }
     } catch (e) {}
-    document.documentElement.classList.add("fxmt-app-lock-pending");
   })();
 </script>
 
 </head>
   <body>
-    <div class="fxmt-app-lock-overlay" id="fxmtAppLockOverlay" hidden aria-hidden="true"></div>
+    <div class="fxmt-app-lock-overlay" id="fxmtAppLockOverlay" hidden aria-hidden="true">
+      <p id="fxmtAppLockError" role="status" aria-live="polite" hidden></p>
+    </div>
     <script>
       if (document.documentElement.classList.contains("fxmt-app-lock-pending")) {
         var fxmtInitialAppLockOverlay = document.getElementById("fxmtAppLockOverlay");
@@ -11422,6 +11432,27 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
               </span>
               <i class="account-security-trigger-arrow fa-solid fa-chevron-left" aria-hidden="true"></i>
             </button>
+          </section>
+
+          <section class="account-security-panel account-security-panel--app-lock" aria-labelledby="securityAppLockHeading">
+            <div class="account-security-panel-heading">
+              <span class="account-security-panel-icon" aria-hidden="true"><i class="fa-solid fa-fingerprint"></i></span>
+              <div>
+                <h3 id="securityAppLockHeading" data-i18n="appLockTitle">قفل التطبيق بالجهاز</h3>
+                <p data-i18n="appLockDescription">يتطلب بصمة الجهاز أو وسيلة قفل الشاشة عند فتح FXMT أو العودة إليه.</p>
+              </div>
+            </div>
+            <div class="account-app-lock-row">
+              <div class="account-security-auth-status" id="accountAppLockState">
+                <span class="account-security-status-dot" aria-hidden="true"></span>
+                <span data-i18n="appLockOff">غير مفعّل</span>
+              </div>
+              <button class="account-app-lock-switch" id="accountAppLockToggle" type="button" role="switch" aria-checked="false" data-i18n-aria="appLockEnable" aria-label="تفعيل قفل التطبيق">
+                <span aria-hidden="true"></span>
+              </button>
+            </div>
+            <p class="account-security-note" data-i18n="appLockControlOnlySettings">يمكن تغيير هذا الخيار من مركز الأمان فقط؛ لا يوجد زر تعطيل على شاشة القفل.</p>
+            <p class="account-app-lock-message" id="accountAppLockMessage" role="status" aria-live="polite"></p>
           </section>
 
         </section>
@@ -12911,6 +12942,22 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       };
 
       const baseTranslations = {
+        appLockTitle: "Device app lock",
+        appLockDescription: "Require your device's fingerprint or available screen-lock method when FXMT opens or resumes.",
+        appLockOn: "On",
+        appLockOff: "Off",
+        appLockEnable: "Enable app lock",
+        appLockDisable: "Turn off app lock",
+        appLockUnavailable: "Requires HTTPS and a browser that supports device authentication.",
+        appLockReady: "Device authentication is requested when FXMT opens or resumes.",
+        appLockActivating: "Confirm with your device to enable app lock.",
+        appLockDisabling: "Confirm with your device to turn off app lock.",
+        appLockWaiting: "Waiting for device confirmation…",
+        appLockEnabledToast: "App lock enabled.",
+        appLockDisabledToast: "App lock turned off.",
+        appLockSetupFailed: "Could not set up device authentication. Try again on a supported device.",
+        appLockVerifyFailed: "Device verification was not completed. Try again.",
+        appLockControlOnlySettings: "This setting can only be changed in Security Center; there is no disable button on the lock screen.",
         pageTitle: "منصة استثمار FXMT",
         appAria: "FXMT wallet home",
         languageLabel: "Language",
@@ -13422,6 +13469,22 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
            personalData: "البيانات الشخصية",
            personalDataDescription: "الاسم، البريد الإلكتروني وبيانات الملف الشخصي",
            securityCenter: "مركز الأمان",
+           appLockTitle: "قفل التطبيق بالجهاز",
+           appLockDescription: "يتطلب بصمة الجهاز أو وسيلة قفل الشاشة المتاحة عند فتح FXMT أو العودة إليه.",
+           appLockOn: "مفعّل",
+           appLockOff: "غير مفعّل",
+           appLockEnable: "تفعيل قفل التطبيق",
+           appLockDisable: "إيقاف قفل التطبيق",
+           appLockUnavailable: "تتطلب الميزة HTTPS ومتصفحًا يدعم المصادقة بالجهاز.",
+           appLockReady: "سيطلب التطبيق مصادقة الجهاز عند فتح FXMT أو العودة إليه.",
+           appLockActivating: "أكّد هويتك بالجهاز لتفعيل قفل التطبيق.",
+           appLockDisabling: "أكّد هويتك بالجهاز لإيقاف قفل التطبيق.",
+           appLockWaiting: "بانتظار تأكيد الجهاز…",
+           appLockEnabledToast: "تم تفعيل قفل التطبيق.",
+           appLockDisabledToast: "تم إيقاف قفل التطبيق.",
+           appLockSetupFailed: "تعذر إعداد مصادقة الجهاز. حاول مجددًا على جهاز مدعوم.",
+           appLockVerifyFailed: "لم يكتمل التحقق من الجهاز. حاول مجددًا.",
+           appLockControlOnlySettings: "يمكن تغيير هذا الخيار من مركز الأمان فقط؛ لا يوجد زر تعطيل على شاشة القفل.",
            securityCenterDescription: "إدارة كلمة المرور وطرق التحقق الإضافية",
            securityCenterTitle: "مركز الأمان",
            securityCenterPageDescription: "تحكّم بكلمة المرور ووسائل حماية حسابك.",
@@ -18079,19 +18142,45 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       const APP_LOCK_ENABLED_KEY = "fxmt-device-app-lock-enabled";
       const APP_LOCK_CREDENTIAL_KEY = "fxmt-device-app-lock-credential";
       const appLockOverlay = document.getElementById("fxmtAppLockOverlay");
+      const appLockError = document.getElementById("fxmtAppLockError");
+      const appLockToggle = document.getElementById("accountAppLockToggle");
+      const appLockState = document.getElementById("accountAppLockState");
+      const appLockMessage = document.getElementById("accountAppLockMessage");
       let appLockPlatformSupportPromise = null;
       let appLockPromptActive = false;
       let appLockSessionCredentialId = "";
 
       function isDeviceAppLockEnabled() {
-        try { localStorage.setItem(APP_LOCK_ENABLED_KEY, "1"); }
-        catch (error) {}
-        return true;
+        try { return localStorage.getItem(APP_LOCK_ENABLED_KEY) === "1"; }
+        catch (error) { return false; }
       }
 
       function getDeviceAppLockCredentialId() {
         try { return localStorage.getItem(APP_LOCK_CREDENTIAL_KEY) || appLockSessionCredentialId; }
         catch (error) { return appLockSessionCredentialId; }
+      }
+
+      function setAccountAppLockMessage(key) {
+        if (appLockMessage) appLockMessage.textContent = key ? t(key) : "";
+      }
+
+      async function refreshAccountAppLockToggle(messageOverride = "") {
+        if (!appLockToggle) return;
+        const enabled = isDeviceAppLockEnabled();
+        const supported = await isDeviceAppLockSupported();
+        if (appLockState) {
+          const stateText = appLockState.querySelector('[data-i18n="appLockOn"], [data-i18n="appLockOff"]');
+          if (stateText) {
+            stateText.dataset.i18n = enabled ? "appLockOn" : "appLockOff";
+            stateText.textContent = t(enabled ? "appLockOn" : "appLockOff");
+          }
+          appLockState.classList.toggle("is-enabled", enabled);
+        }
+        appLockToggle.setAttribute("aria-checked", String(enabled));
+        appLockToggle.setAttribute("aria-label", t(enabled ? "appLockDisable" : "appLockEnable"));
+        appLockToggle.classList.toggle("is-enabled", enabled);
+        appLockToggle.disabled = !supported || appLockPromptActive;
+        setAccountAppLockMessage(!supported ? "appLockUnavailable" : messageOverride || (enabled ? "appLockReady" : ""));
       }
 
       async function isDeviceAppLockSupported() {
@@ -18140,6 +18229,19 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       function clearDeviceAppLockOverlay() {
         document.documentElement.classList.remove("fxmt-app-lock-pending");
         if (appLockOverlay) appLockOverlay.hidden = true;
+        if (appLockError) {
+          appLockError.hidden = true;
+          appLockError.textContent = "";
+        }
+      }
+
+      function showDeviceAppLockError() {
+        if (!appLockError) return;
+        const isArabic = document.documentElement.lang === "ar";
+        appLockError.textContent = isArabic
+          ? "تعذّر استدعاء مصادقة الجهاز. افتح التطبيق من عنوان HTTPS في متصفح يدعم قفل الجهاز، ثم المس الشاشة لإعادة المحاولة."
+          : "Device authentication could not start. Open FXMT from an HTTPS address in a browser that supports device authentication, then tap the screen to retry.";
+        appLockError.hidden = false;
       }
 
       async function requestDeviceAppLockVerification() {
@@ -18186,10 +18288,64 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         catch (error) {}
       }
 
-      async function unlockDeviceApp() {
+      async function enableDeviceAppLock() {
+        if (!await isDeviceAppLockSupported()) {
+          setAccountAppLockMessage("appLockUnavailable");
+          return;
+        }
+        appLockToggle.disabled = true;
+        appLockPromptActive = true;
+        setAccountAppLockMessage("appLockActivating");
+        let messageAfterPrompt = "";
+        try {
+          if (getDeviceAppLockCredentialId()) {
+            await requestDeviceAppLockVerification();
+          } else {
+            await createDeviceAppLockCredential();
+          }
+          localStorage.setItem(APP_LOCK_ENABLED_KEY, "1");
+          showToast(t("appLockEnabledToast"));
+        } catch (error) {
+          messageAfterPrompt = "appLockSetupFailed";
+        } finally {
+          appLockPromptActive = false;
+          await refreshAccountAppLockToggle(messageAfterPrompt);
+        }
+      }
+
+      async function disableDeviceAppLock() {
+        if (!await isDeviceAppLockSupported()) {
+          setAccountAppLockMessage("appLockUnavailable");
+          return;
+        }
+        appLockToggle.disabled = true;
+        appLockPromptActive = true;
+        setAccountAppLockMessage("appLockDisabling");
+        let messageAfterPrompt = "";
+        try {
+          await requestDeviceAppLockVerification();
+          localStorage.removeItem(APP_LOCK_ENABLED_KEY);
+          clearDeviceAppLockOverlay();
+          showToast(t("appLockDisabledToast"));
+        } catch (error) {
+          messageAfterPrompt = "appLockVerifyFailed";
+        } finally {
+          appLockPromptActive = false;
+          await refreshAccountAppLockToggle(messageAfterPrompt);
+        }
+      }
+
+      async function handleDeviceAppLockToggle() {
+        if (appLockPromptActive) return;
+        if (isDeviceAppLockEnabled()) await disableDeviceAppLock();
+        else await enableDeviceAppLock();
+      }
+
+      async function unlockDeviceApp(fromUserGesture = false) {
         if (!appLockOverlay || appLockPromptActive || !isDeviceAppLockEnabled()) return;
         document.documentElement.classList.add("fxmt-app-lock-pending");
         appLockOverlay.hidden = false;
+        if (appLockError) appLockError.hidden = true;
         appLockPromptActive = true;
         try {
           if (!await isDeviceAppLockSupported()) throw new Error("device-authentication-unavailable");
@@ -18200,7 +18356,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           }
           if (document.visibilityState === "visible") clearDeviceAppLockOverlay();
         } catch (error) {
-          // Stay locked; browsers that require a user gesture retry on the next tap.
+          if (fromUserGesture) showDeviceAppLockError();
         } finally {
           appLockPromptActive = false;
         }
@@ -18210,14 +18366,15 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         if (!document.documentElement.classList.contains("fxmt-app-lock-pending") || appLockPromptActive) return;
         if (event.cancelable) event.preventDefault();
         event.stopImmediatePropagation();
-        unlockDeviceApp();
+        unlockDeviceApp(true);
       }, true);
       document.addEventListener("keydown", (event) => {
         if (!document.documentElement.classList.contains("fxmt-app-lock-pending") || appLockPromptActive) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        unlockDeviceApp();
+        unlockDeviceApp(true);
       }, true);
+      appLockToggle?.addEventListener("click", handleDeviceAppLockToggle);
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden" && !appLockPromptActive && isDeviceAppLockEnabled()) showDeviceAppLock();
         if (document.visibilityState === "visible" && !appLockPromptActive && isDeviceAppLockEnabled()) {
@@ -18239,6 +18396,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         refreshAppLockOverlay();
         unlockDeviceApp();
       }
+      refreshAccountAppLockToggle();
 
       document.getElementById("accountSecurityAuthenticatorOpen")?.addEventListener("click", openAccountAuthenticator);
       document.getElementById("accountAuthenticatorBack")?.addEventListener("click", () => {
@@ -32058,6 +32216,70 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     #authWizard .aw-page[data-aw-page="connect"] .aw-btn {
       min-height: 46px;
     }
+  }
+</style>
+
+<style id="fxmt-account-app-lock-style">
+  #accountDrawer .account-app-lock-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 42px;
+  }
+  #accountDrawer .account-app-lock-row .account-security-auth-status {
+    flex: 1;
+    margin: 0;
+  }
+  #accountDrawer .account-security-auth-status.is-enabled {
+    color: #8ce7bf;
+  }
+  #accountDrawer .account-app-lock-switch {
+    position: relative;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid rgba(218,139,255,.36);
+    border-radius: 999px;
+    background: rgba(29,16,47,.94);
+    cursor: pointer;
+    transition: background .18s ease, border-color .18s ease, opacity .18s ease;
+  }
+  #accountDrawer .account-app-lock-switch > span {
+    position: absolute;
+    inset-inline-start: 3px;
+    top: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #d5c0e5;
+    transition: transform .18s ease, background .18s ease;
+  }
+  html[dir="rtl"] #accountDrawer .account-app-lock-switch.is-enabled > span {
+    transform: translateX(-16px);
+  }
+  html[dir="ltr"] #accountDrawer .account-app-lock-switch.is-enabled > span {
+    transform: translateX(16px);
+  }
+  #accountDrawer .account-app-lock-switch.is-enabled {
+    border-color: rgba(114,229,181,.56);
+    background: rgba(66,163,123,.42);
+  }
+  #accountDrawer .account-app-lock-switch.is-enabled > span { background: #b6ffd8; }
+  #accountDrawer .account-app-lock-switch:focus-visible {
+    outline: 2px solid rgba(241,120,220,.8);
+    outline-offset: 3px;
+  }
+  #accountDrawer .account-app-lock-switch:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+  }
+  #accountDrawer .account-app-lock-message:empty { display: none; }
+  #accountDrawer .account-app-lock-message {
+    color: #d5c0e5;
+    font-size: 11px;
+    line-height: 1.55;
   }
 </style>
 
