@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "initialized": false,
-  "updatedAt": null,
-  "sourceCommit": null
+  "initialized": true,
+  "updatedAt": "2026-11-06",
+  "sourceCommit": "4e2478605ff4bb604c8759e1eb354f79a021dd19"
 }
