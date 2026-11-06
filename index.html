@@ -11564,6 +11564,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         </section>
 
         <p class="account-drawer-footnote" data-i18n="accountSecurityNote">حسابك محمي بتشفير متقدم وإشعارات أمان فورية.</p>
+        <p class="account-drawer-version" data-no-translate><span id="platformBuildVersionLabel">الإصدار:</span> <bdi id="platformBuildVersionValue" dir="ltr">—</bdi></p>
       
 </div>
 </aside>
@@ -16040,6 +16041,11 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           });
           responseText = await response.text();
         } catch (error) {
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            throw new Error(currentLanguage === "ar"
+              ? "لا يوجد اتصال بالإنترنت"
+              : "No internet connection");
+          }
           if (requestController?.signal.aborted) {
             throw new Error("انتهت مهلة الاتصال بالخادم. تحقق من الاتصال بالإنترنت ثم أعد المحاولة.");
           }
@@ -32713,6 +32719,93 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     max-width: none;
   }
 </style>
+
+<style id="fxmt-platform-build-version-style">
+  .account-drawer-version {
+    margin: 4px 4px 0;
+    color: #d5b5ed;
+    font-size: 9px;
+    line-height: 1.5;
+    text-align: center;
+    direction: rtl;
+    font-variant-numeric: tabular-nums;
+  }
+  .account-drawer-version bdi {
+    color: #f0d9ff;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    letter-spacing: .15px;
+  }
+</style>
+<script id="fxmt-platform-build-version-loader">
+  (function () {
+    const label = document.getElementById("platformBuildVersionLabel");
+    const value = document.getElementById("platformBuildVersionValue");
+    if (!label || !value) return;
+
+    const cacheKey = "fxmt-platform-build-version-v1";
+    const apiUrl = "https://api.github.com/repos/compsaan/FXMTGlobal/commits/main";
+    const updateLabel = function () {
+      const language = String(document.documentElement.lang || "").toLowerCase();
+      label.textContent = language.startsWith("ar") || document.documentElement.dir === "rtl"
+        ? "الإصدار:"
+        : "Version:";
+    };
+    updateLabel();
+
+    try {
+      const cachedVersion = localStorage.getItem(cacheKey);
+      if (cachedVersion) value.textContent = cachedVersion;
+    } catch (error) {}
+
+    let requestInFlight = null;
+    let lastCheckedAt = 0;
+    async function refreshPlatformVersion(force) {
+      if (requestInFlight) return requestInFlight;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (!force && Date.now() - lastCheckedAt < 15 * 60 * 1000) return;
+      lastCheckedAt = Date.now();
+
+      requestInFlight = (async function () {
+        let timeoutId = null;
+        try {
+          const controller = typeof AbortController === "function" ? new AbortController() : null;
+          if (controller) timeoutId = window.setTimeout(function () { controller.abort(); }, 10000);
+          const response = await fetch(apiUrl, {
+            cache: "no-store",
+            headers: { Accept: "application/vnd.github+json" },
+            signal: controller ? controller.signal : undefined
+          });
+          if (!response.ok) return;
+          const commit = await response.json();
+          const sha = String(commit && commit.sha || "").slice(0, 7);
+          const rawDate = String(
+            commit && commit.commit && commit.commit.committer && commit.commit.committer.date ||
+            commit && commit.commit && commit.commit.author && commit.commit.author.date || ""
+          );
+          const date = rawDate.slice(0, 10).replace(/-/g, ".");
+          if (!sha || !date) return;
+          const version = date + " · " + sha;
+          updateLabel();
+          value.textContent = version;
+          try { localStorage.setItem(cacheKey, version); } catch (error) {}
+        } catch (error) {
+          /* Keep the last known version visible when GitHub is temporarily unavailable. */
+        } finally {
+          if (timeoutId) window.clearTimeout(timeoutId);
+          requestInFlight = null;
+        }
+      })();
+      return requestInFlight;
+    }
+
+    refreshPlatformVersion(true);
+    window.addEventListener("online", function () { refreshPlatformVersion(true); });
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) refreshPlatformVersion(false);
+    });
+    window.setInterval(function () { refreshPlatformVersion(true); }, 15 * 60 * 1000);
+  })();
+</script>
 
 </body>
 </html>
