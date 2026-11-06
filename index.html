@@ -32742,8 +32742,8 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     const value = document.getElementById("platformBuildVersionValue");
     if (!label || !value) return;
 
-    const cacheKey = "fxmt-platform-build-version-v1";
-    const apiUrl = "https://api.github.com/repos/compsaan/FXMTGlobal/commits/main";
+    const cacheKey = "fxmt-platform-fixed-version-v1";
+    const versionUrl = "https://raw.githubusercontent.com/compsaan/FXMTGlobal/main/platform-version.json";
     const updateLabel = function () {
       const language = String(document.documentElement.lang || "").toLowerCase();
       label.textContent = language.startsWith("ar") || document.documentElement.dir === "rtl"
@@ -32758,36 +32758,28 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     } catch (error) {}
 
     let requestInFlight = null;
-    let lastCheckedAt = 0;
-    async function refreshPlatformVersion(force) {
+    async function loadPlatformVersion() {
       if (requestInFlight) return requestInFlight;
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-      if (!force && Date.now() - lastCheckedAt < 15 * 60 * 1000) return;
-      lastCheckedAt = Date.now();
 
       requestInFlight = (async function () {
         let timeoutId = null;
         try {
           const controller = typeof AbortController === "function" ? new AbortController() : null;
           if (controller) timeoutId = window.setTimeout(function () { controller.abort(); }, 10000);
-          const response = await fetch(apiUrl, {
+          const response = await fetch(versionUrl + "?v=" + Date.now(), {
             cache: "no-store",
-            headers: { Accept: "application/vnd.github+json" },
+            headers: { Accept: "application/json" },
             signal: controller ? controller.signal : undefined
           });
           if (!response.ok) return;
-          const commit = await response.json();
-          const sha = String(commit && commit.sha || "").slice(0, 7);
-          const rawDate = String(
-            commit && commit.commit && commit.commit.committer && commit.commit.committer.date ||
-            commit && commit.commit && commit.commit.author && commit.commit.author.date || ""
-          );
-          const date = rawDate.slice(0, 10).replace(/-/g, ".");
-          if (!sha || !date) return;
-          const version = date + " · " + sha;
+          const versionData = await response.json();
+          const version = String(versionData && versionData.version || "").trim();
+          if (!/^\d+\.\d+\.\d+$/.test(version)) return;
           updateLabel();
-          value.textContent = version;
-          try { localStorage.setItem(cacheKey, version); } catch (error) {}
+          const displayVersion = "v" + version;
+          value.textContent = displayVersion;
+          try { localStorage.setItem(cacheKey, displayVersion); } catch (error) {}
         } catch (error) {
           /* Keep the last known version visible when GitHub is temporarily unavailable. */
         } finally {
@@ -32798,12 +32790,7 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
       return requestInFlight;
     }
 
-    refreshPlatformVersion(true);
-    window.addEventListener("online", function () { refreshPlatformVersion(true); });
-    document.addEventListener("visibilitychange", function () {
-      if (!document.hidden) refreshPlatformVersion(false);
-    });
-    window.setInterval(function () { refreshPlatformVersion(true); }, 15 * 60 * 1000);
+    loadPlatformVersion();
   })();
 </script>
 
