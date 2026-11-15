@@ -16498,6 +16498,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
           updateCurrentWalletView();
           syncLatestDepositRecord(payload.action === "confirm_deposit" ? "completed" : currentUser.depositStatus);
           if (!options.silentSuccess) showToast(successMessage);
+          if (options.returnResponse) return { user: currentUser, response: response };
           return currentUser;
         } catch (error) {
           showToast(error.message || "تعذر إكمال العملية.");
@@ -16508,7 +16509,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       window.fxAddProfit = (profit, meta = {}) => fxAdminAction(
         { action: "profit_code", profit: Number(profit), username: currentUser?.username || localStorage.getItem("username") || "", ...meta },
         "تمت إضافة الربح إلى الرصيد.",
-        { silentSuccess: true }
+        { silentSuccess: true, returnResponse: true }
       );
       window.fxConfirmDeposit = () => fxAdminAction({ action: "confirm_deposit" }, "تم تأكيد الإيداع.");
       window.fxRefreshWallet = () => refreshCurrentUser(false);
@@ -24506,7 +24507,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   const symbols=['BTC / USDT','ETH / USDT','SOL / USDT'], marks=[syncMarketIcon('bitcoin'),syncMarketIcon('ethereum'),syncMarketIcon('solana')], styles=['btc','eth','sol'];
   const labels={waiting:'جاهزة',running:'تتزامن الآن',completed:'مكتملة',skipped:'غير متاحة'};
   const LOG_KEY='fxmt-sync-log-v1';
-  let state=E.empty(), key='', memory={}, lastFocus=null, timer=null, inertNodes=[], oldOverflow='', lastNotice='', lastTradeSignature=null, crediting=false;
+  let state=E.empty(), key='', memory={}, lastFocus=null, timer=null, inertNodes=[], oldOverflow='', lastNotice='', lastTradeSignature=null, crediting=false, profitLedgerCheckUser='', profitLedgerCheckedAt=0;
   const user=()=>typeof currentUser!=='undefined'?currentUser:null;
   const balanceCents=()=>{if(!balanceIsAuthoritative)return 0;const b=Number(user()?.balance);return Number.isFinite(b)&&b>0?Math.round(b*100):0;};
   const utc=ts=>new Date(ts).toISOString().replace('T',' ').slice(0,19)+' UTC';
@@ -24543,24 +24544,94 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   }
   function duration(ms){const s=Math.max(0,Math.ceil(ms/1000));return [Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');}
 
-  /* Credit completed trade profits to the real wallet balance across the platform and store a detailed log. */
-  async function creditCompleted(){
-    if(crediting)return;const u=user();if(!u)return;
-    const pending=[];state.days.forEach(d=>d.trades.forEach(t=>{if(t.status==='completed'&&!t.credited)pending.push({d,t});}));
-    if(!pending.length)return;crediting=true;
+  /* Reconcile old local credit flags against the server ledger before retrying. */
+  async function reconcileProfitLedger(account){
+    const username=String(account?.username||'').trim();
+    if(!username||!account?.id)return false;
+    const now=Date.now();
+    if(profitLedgerCheckUser===username&&now-profitLedgerCheckedAt<30000)return true;
+    profitLedgerCheckUser=username;profitLedgerCheckedAt=now;
     try{
+      const response=await apiGet({action:'getProfits',username},{timeoutMs:45000});
+      if(!response||response.ok===false||!responseAccountMatches(response,username)){
+        const error=el('syncError');
+        if(error)error.textContent='تعذر التحقق من سجل الأرباح في الخادم؛ ستتم إعادة المحاولة.';
+        return false;
+      }
+      const data=responseData(response);
+      const rows=Array.isArray(data.profits)?data.profits:[];
+      const byRef=new Map(rows.map(row=>[String(row?.refId||''),row]).filter(([ref])=>!!ref));
+      let changed=false,conflict=false;
+      state.days.forEach(day=>day.trades.forEach(trade=>{
+        if(trade.status!=='completed')return;
+        const refId='SYNC-'+day.day+'-'+(trade.index+1)+'-'+String(account.id||account.username||'guest');
+        const record=byRef.get(refId);
+        if(record){
+          const recordedProfit=Number(record.profit);
+          if(!Number.isFinite(recordedProfit)||Math.abs(recordedProfit-trade.profitCents/100)>0.005){
+            if(!trade.credited){trade.credited=true;changed=true;}
+            if(!trade.creditConflict){trade.creditConflict=true;changed=true;}
+            conflict=true;
+          }else{
+            if(!trade.credited){trade.credited=true;changed=true;}
+            if(!trade.creditedAt){trade.creditedAt=Date.now();changed=true;}
+            if(trade.creditConflict){delete trade.creditConflict;changed=true;}
+          }
+        }else if(trade.credited){
+          trade.credited=false;
+          delete trade.creditedAt;
+          delete trade.creditConflict;
+          changed=true;
+        }
+      }));
+      if(changed)save();
+      const error=el('syncError');
+      if(error)error.textContent=conflict?'وجد الخادم ربحًا مسجلاً بقيمة مختلفة عن قيمة الصفقة؛ أوقفت إعادة الإضافة لتجنب التكرار.':'';
+      return true;
+    }catch(error){
+      const notice=el('syncError');
+      if(notice)notice.textContent='تعذر التحقق من سجل الأرباح في الخادم؛ ستتم إعادة المحاولة.';
+      return false;
+    }
+  }
+
+  /* Credit completed trade profits only after the server confirms the ledger entry and balance. */
+  async function creditCompleted(){
+    if(crediting)return;const u=user();if(!u)return;crediting=true;
+    try{
+      if(!await reconcileProfitLedger(u))return;
+      const pending=[];state.days.forEach(d=>d.trades.forEach(t=>{if(t.status==='completed'&&!t.credited)pending.push({d,t});}));
+      if(!pending.length)return;
       for(const {d,t} of pending){
-        const profit=t.profitCents/100, before=Number(u.balance||0);
-        let ok=false;
-        if(typeof window.fxAddProfit==='function'&&u.id){const r=await window.fxAddProfit(profit,{refId:'SYNC-'+d.day+'-'+(t.index+1)+'-'+String(u.id||u.username||'guest'),day:d.day,tradeNo:t.index+1,pair:symbols[t.index],principal:+(t.principalCents/100).toFixed(2)});ok=!!r;}
-        if(!ok)break;
-        const cu=user()||u;
+        const profit=t.profitCents/100,cuBefore=user()||u;
+        const refId='SYNC-'+d.day+'-'+(t.index+1)+'-'+String(cuBefore.id||cuBefore.username||'guest');
+        let result=null;
+        if(typeof window.fxAddProfit==='function'&&cuBefore.id){
+          result=await window.fxAddProfit(profit,{refId,day:d.day,tradeNo:t.index+1,pair:symbols[t.index],principal:+(t.principalCents/100).toFixed(2)});
+        }
+        const response=result&&result.response;
+        const credited=responseData(response);
+        const responseProfit=Number(credited.profit);
+        const balanceBefore=Number(credited.balanceBefore);
+        const balanceAfter=Number(credited.balanceAfter??credited.balance);
+        const confirmed=response?.ok===true&&String(credited.refId||'')===refId&&
+          Number.isFinite(responseProfit)&&Math.abs(responseProfit-profit)<0.01&&
+          Number.isFinite(balanceBefore)&&Number.isFinite(balanceAfter)&&
+          Math.abs(balanceAfter-(balanceBefore+profit))<0.011;
+        if(!confirmed){
+          const error=el('syncError');
+          if(error)error.textContent='لم يؤكد الخادم إضافة الربح إلى الرصيد بعد؛ ستتم إعادة المحاولة تلقائياً.';
+          break;
+        }
+        const cu=result.user||user()||cuBefore;
+        const error=el('syncError');
+        if(error&&!state.days.some(day=>day.trades.some(trade=>trade.creditConflict)))error.textContent='';
         t.credited=true;t.creditedAt=Date.now();save();
         writeLog({id:'SYNC-'+d.day+'-'+(t.index+1)+'-'+String(cu.id||cu.username||'guest'),type:'sync_profit',status:'completed',
           username:cu.username||'',accountId:cu.id||cu.serverId||'',email:cu.email||'',fullName:cu.fullName||cu.name||'',
           pair:symbols[t.index],tradeNo:t.index+1,day:d.day,startedAt:utc(E.begin(t)),completedAt:utc(E.begin(t)+E.DURATION),
           capitalUSDT:+((t.capitalBasisCents??d.capitalCents)/100).toFixed(2),principalUSDT:+(t.principalCents/100).toFixed(2),profitUSDT:+profit.toFixed(2),
-          returnPercent:E.RETURN_BPS[t.index]/100,balanceBefore:+before.toFixed(2),balanceAfter:+Number(cu.balance||before+profit).toFixed(2),
+          returnPercent:E.RETURN_BPS[t.index]/100,balanceBefore:+balanceBefore.toFixed(2),balanceAfter:+balanceAfter.toFixed(2),
           amount:+profit.toFixed(2),createdAt:new Date().toISOString(),timezone:'UTC'});
       }
     }finally{crediting=false;}
