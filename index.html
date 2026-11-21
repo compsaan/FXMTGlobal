@@ -16019,7 +16019,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       async function apiRequest(payload, options = {}) {
         let response;
         let responseText;
-        const slowerActions = ["restoreSession", "profit_code", "addProfit", "saveUserData"];
+        const slowerActions = ["restoreSession", "startSyncTrade", "profit_code", "addProfit", "saveUserData"];
         const defaultTimeoutMs = slowerActions.includes(String(payload?.action || "")) ? 45000 : 25000;
         const requestController = !options.signal && typeof AbortController === "function"
           ? new AbortController()
@@ -16511,6 +16511,24 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         "تمت إضافة الربح إلى الرصيد.",
         { silentSuccess: true, returnResponse: true }
       );
+      window.fxStartSyncTrade = async (tradeNo) => {
+        if (!currentUser?.id) return { ok: false, error: "invalid_session", message: "سجّل الدخول أولاً." };
+        try {
+          return await apiRequest({
+            action: "startSyncTrade",
+            tradeNo: Number(tradeNo),
+            id: currentUser.serverId || currentUser.id
+          });
+        } catch (error) {
+          const serverNotUpdated = error.code === "unknown_action";
+          const message = serverNotUpdated
+            ? (currentLanguage === "ar"
+              ? "تحقق التوقيت غير مفعّل على الخادم بعد. حدّث سكربت Apps Script ثم أعد المحاولة."
+              : "The server timing check is not deployed yet. Update the Apps Script and try again.")
+            : (error.message || (currentLanguage === "ar" ? "تعذر تفعيل الجلسة." : "Could not activate the session."));
+          return { ok: false, error: error.code || "sync_start_failed", message: message };
+        }
+      };
       window.fxConfirmDeposit = () => fxAdminAction({ action: "confirm_deposit" }, "تم تأكيد الإيداع.");
       window.fxRefreshWallet = () => refreshCurrentUser(false);
 
@@ -24375,7 +24393,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
     <div id="syncTrades" class="sync-trades"></div>
     
     <div id="syncLogModal" class="sync-log-modal" hidden><div class="sync-log-dialog" role="dialog" aria-modal="true" aria-labelledby="syncLogTitle"><div class="sync-log-head"><div><h3 id="syncLogTitle">سجل التزامن</h3><small>تفاصيل عمليات التزامن ونتائجها</small></div><button type="button" class="sync-icon sync-log-close" id="syncLogClose" aria-label="إغلاق السجل"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div><section class="sync-history"><div id="syncHistoryList" class="sync-history-list" role="region" aria-label="سجل التزامن"></div></section></div></div>
-    <p class="sync-foot">تُتاح كل جلسة لمدة 15 دقيقة من موعدها المحدد، ثم تصبح غير متاحة. لا يبدأ التزامن قبل الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.</p>
+    <p class="sync-foot">تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.</p>
   </section>
 </div>
 
@@ -24385,7 +24403,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   "use strict";
   const VERSION = 2;
   const DURATION = 5 * 60 * 1000;
-  const AVAILABILITY = 15 * 60 * 1000;
+  const AVAILABILITY = 30 * 60 * 1000;
   const SLOTS = [11, 13, 15];
   const RETURN_BPS = [250, 150, 350];
   const DAY = 86400000;
@@ -24426,8 +24444,10 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
         t.start = slotTime(day.day, SLOTS[t.index]);
       }
       if (t.status === 'running' && now >= begin(t) + DURATION) t.status = 'completed';
-      // A scheduled session is available for 15 minutes after its UTC start.
+      // A scheduled session is available for 30 minutes after its UTC start.
       if ((t.status === 'waiting' || t.status === 'skipped') && now >= t.start + AVAILABILITY) t.status = 'skipped';
+      // Reopen sessions skipped by the former 15-minute window when they are still within the new window.
+      if (next.enabled && t.status === 'skipped' && !t.runAt && !t.credited && now >= t.start && now < t.start + AVAILABILITY) t.status = 'waiting';
     }));
     if (next.enabled && !next.days.some(d => d.day === currentDay)) next.days.push(makeDay(next, now));
     next.days = next.days.slice(-90);
@@ -24507,7 +24527,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   const symbols=['BTC / USDT','ETH / USDT','SOL / USDT'], marks=[syncMarketIcon('bitcoin'),syncMarketIcon('ethereum'),syncMarketIcon('solana')], styles=['btc','eth','sol'];
   const labels={waiting:'جاهزة',running:'تتزامن الآن',completed:'مكتملة',skipped:'غير متاحة'};
   const LOG_KEY='fxmt-sync-log-v1';
-  let state=E.empty(), key='', memory={}, lastFocus=null, timer=null, inertNodes=[], oldOverflow='', lastNotice='', lastTradeSignature=null, crediting=false, profitLedgerCheckUser='', profitLedgerCheckedAt=0;
+  let state=E.empty(), key='', memory={}, lastFocus=null, timer=null, clockRefreshTimer=null, clockRefreshInFlight=false, serverClockOffsetMs=0, inertNodes=[], oldOverflow='', lastNotice='', lastTradeSignature=null, crediting=false, profitLedgerCheckUser='', profitLedgerCheckedAt=0;
   const user=()=>typeof currentUser!=='undefined'?currentUser:null;
   const balanceCents=()=>{if(!balanceIsAuthoritative)return 0;const b=Number(user()?.balance);return Number.isFinite(b)&&b>0?Math.round(b*100):0;};
   const utc=ts=>new Date(ts).toISOString().replace('T',' ').slice(0,19)+' UTC';
@@ -24543,6 +24563,20 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
     try{if(typeof updateCurrentWalletView==='function')updateCurrentWalletView();}catch(e){}
   }
   function duration(ms){const s=Math.max(0,Math.ceil(ms/1000));return [Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');}
+  const syncNow=()=>Date.now()+serverClockOffsetMs;
+  async function refreshSyncServerClock(){
+    if(clockRefreshInFlight||!user()||typeof apiGet!=='function')return;
+    clockRefreshInFlight=true;
+    const requestStartedAt=Date.now();
+    try{
+      const response=await apiGet({action:'getSyncClock'},{timeoutMs:10000});
+      const requestFinishedAt=Date.now(),serverNow=Date.parse(response?.serverNow||'');
+      if(response?.ok&&Number.isFinite(serverNow)){
+        serverClockOffsetMs=serverNow-Math.round((requestStartedAt+requestFinishedAt)/2);
+        if(!layer.hidden)tick();
+      }
+    }finally{clockRefreshInFlight=false;}
+  }
 
   /* Reconcile old local credit flags against the server ledger before retrying. */
   async function reconcileProfitLedger(account){
@@ -24668,7 +24702,7 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
       trades:view.trades.map(t=>[t.status,t.start,t.runAt,t.principalCents,t.profitCents,t.credited,t.creditedAt])});
     if(logModal.hidden&&tradeSignature!==lastTradeSignature){
       el('syncTrades').innerHTML=view.trades.map((t,i)=>{const b=E.begin(t),active=t.status==='running', completed=t.status==='completed', progress=completed?100:active?Math.max(0,Math.min(100,(now-b)/E.DURATION*100)):0;
-      const status=!today?'بانتظار التفعيل':(now<t.start&&t.status!=='running'&&t.status!=='completed')?'مقفلة حتى الموعد':labels[t.status];
+      const status=!today?'بانتظار التفعيل':(!active&&!completed&&now>=t.start+E.AVAILABILITY)?'منتهية':(now<t.start&&t.status!=='running'&&t.status!=='completed')?'مقفلة حتى الموعد':labels[t.status];
       const countdown=active?'تنتهي خلال '+duration(b+E.DURATION-now):completed?'':now<t.start?'تتاح بعد '+duration(t.start-now):now<t.start+E.AVAILABILITY?'متاحة حتى '+new Date(t.start+E.AVAILABILITY).toISOString().slice(11,16)+' UTC':'انتهت مهلة الإتاحة';
       const countdownMarkup=completed?'':'<div class="sync-countdown" data-sync-countdown>'+countdown+'</div>';
       const locked=now<t.start||now>=t.start+E.AVAILABILITY||now>=E.dayEnd(view.day), canSync=!active&&!completed&&!locked;
@@ -24688,9 +24722,9 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
     if(!logModal.hidden)renderHistory();
     const notice=complete.length?'اكتملت '+complete.length+' من 3 جلسات اليوم':'اختر العملة لبدء تزامن سريع';if(notice!==lastNotice){el('syncLive').textContent=notice;lastNotice=notice;}
   }
-  function tick(){read();const now=Date.now();let next=E.reconcile(state,now);const cap=balanceCents();if(cap>=100)next=E.setCapital(next,cap,now);if(JSON.stringify(next)!==JSON.stringify(state)){state=next;save();}render(now);creditCompleted().then(()=>{if(!layer.hidden)render(Date.now());});}
-  function open(){if(!layer.hidden)return;lastFocus=document.activeElement;oldOverflow=document.body.style.overflow;const appShell=document.querySelector('main.app-shell'),nav=document.querySelector('.bottom-nav');inertNodes=[...document.body.children].filter(n=>n!==layer&&n!==appShell&&n!==nav&&n.tagName!=='SCRIPT'&&n.tagName!=='STYLE').map(n=>({node:n,inert:n.inert}));inertNodes.forEach(({node})=>node.inert=true);appShell?.classList.add('has-open-primary-view');document.body.classList.add('has-open-primary-view');document.querySelectorAll('.nav-item').forEach(n=>{const active=n.dataset.nav==='Sync';n.classList.toggle('is-active',active);if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});layer.hidden=false;document.body.style.overflow='hidden';tick();layer.querySelector('.sync-page').focus();if(typeof pushMobileBackHistoryEntry==='function')pushMobileBackHistoryEntry();timer=setInterval(tick,1000);}
-  function close(fromBack){if(layer.hidden)return;layer.hidden=true;el('syncLogModal').hidden=true;clearInterval(timer);timer=null;inertNodes.forEach(({node,inert})=>node.inert=inert);document.body.style.overflow=oldOverflow;document.querySelectorAll('.nav-item').forEach(n=>{const home=n.dataset.nav==='Home';n.classList.toggle('is-active',home);if(home)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});document.querySelector('main.app-shell')?.classList.remove('has-open-primary-view');document.body.classList.remove('has-open-primary-view');if(!fromBack&&typeof syncMobileBackHistoryOnClose==='function')syncMobileBackHistoryOnClose();lastFocus?.focus?.();}
+  function tick(){read();const now=syncNow();let next=E.reconcile(state,now);const cap=balanceCents();if(cap>=100)next=E.setCapital(next,cap,now);if(JSON.stringify(next)!==JSON.stringify(state)){state=next;save();}render(now);creditCompleted().then(()=>{if(!layer.hidden)render(syncNow());});}
+  function open(){if(!layer.hidden)return;lastFocus=document.activeElement;oldOverflow=document.body.style.overflow;const appShell=document.querySelector('main.app-shell'),nav=document.querySelector('.bottom-nav');inertNodes=[...document.body.children].filter(n=>n!==layer&&n!==appShell&&n!==nav&&n.tagName!=='SCRIPT'&&n.tagName!=='STYLE').map(n=>({node:n,inert:n.inert}));inertNodes.forEach(({node})=>node.inert=true);appShell?.classList.add('has-open-primary-view');document.body.classList.add('has-open-primary-view');document.querySelectorAll('.nav-item').forEach(n=>{const active=n.dataset.nav==='Sync';n.classList.toggle('is-active',active);if(active)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});layer.hidden=false;document.body.style.overflow='hidden';tick();refreshSyncServerClock();clockRefreshTimer=setInterval(refreshSyncServerClock,60000);layer.querySelector('.sync-page').focus();if(typeof pushMobileBackHistoryEntry==='function')pushMobileBackHistoryEntry();timer=setInterval(tick,1000);}
+  function close(fromBack){if(layer.hidden)return;layer.hidden=true;el('syncLogModal').hidden=true;clearInterval(timer);clearInterval(clockRefreshTimer);timer=null;clockRefreshTimer=null;inertNodes.forEach(({node,inert})=>node.inert=inert);document.body.style.overflow=oldOverflow;document.querySelectorAll('.nav-item').forEach(n=>{const home=n.dataset.nav==='Home';n.classList.toggle('is-active',home);if(home)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});document.querySelector('main.app-shell')?.classList.remove('has-open-primary-view');document.body.classList.remove('has-open-primary-view');if(!fromBack&&typeof syncMobileBackHistoryOnClose==='function')syncMobileBackHistoryOnClose();lastFocus?.focus?.();}
   globalThis.openSyncSimulation=open;globalThis.closeSyncSimulation=close;
   const logModal=el('syncLogModal');
   function openLog(){logModal.hidden=false;renderHistory();el('syncLogClose').focus();}
@@ -24702,24 +24736,48 @@ html:not([data-theme="dark"]) .network-mark svg{filter:drop-shadow(0 2px 5px rgb
   const syncTopAlert=el('syncTopAlert');let syncAlertTimer;
   function showSyncRetryAlert(message){const copy=syncTopAlert.querySelector('.sync-alert-copy');if(copy){copy.querySelector('strong').textContent='تعذر بدء التزامن';copy.querySelector('span').textContent=message||'تحقق من موعد الجلسة ورصيدك ثم أعد المحاولة.';}syncTopAlert.classList.add('is-visible');clearTimeout(syncAlertTimer);syncAlertTimer=setTimeout(()=>syncTopAlert.classList.remove('is-visible'),4200);}
   el('syncAlertClose').addEventListener('click',()=>syncTopAlert.classList.remove('is-visible'));
-  el('syncTrades').addEventListener('click',event=>{
+  el('syncTrades').addEventListener('click',async event=>{
     const button=event.target.closest('[data-sync-trade]');if(!button)return;
-    const index=Number(button.dataset.syncTrade),now=Date.now(),capital=balanceCents();
+    if(button.disabled)return;
+    const index=Number(button.dataset.syncTrade),now=syncNow(),capital=balanceCents();
     if(!Number.isInteger(index)||index<0||index>=E.SLOTS.length)return;
     if(capital<10000){showSyncRetryAlert('رصيد غير كافي لتفعيل الصفقة');return;}
     if(now<E.slotTime(E.localDay(now),E.SLOTS[index])){showSyncRetryAlert('لم يحل موعد هذه الجلسة بعد.');return;}
-    if(now>=E.slotTime(E.localDay(now),E.SLOTS[index])+E.AVAILABILITY){showSyncRetryAlert('انتهت مهلة إتاحة هذه الجلسة (15 دقيقة).');return;}
-    const next=E.startTrade(state,index,capital,now);
-    const trade=next.days.find(day=>day.day===E.localDay(now))?.trades[index];
-    if(!trade||trade.status!=='running'||trade.runAt!==now){showSyncRetryAlert('هذه الجلسة بدأت مسبقًا أو انتهت صلاحيتها لهذا اليوم.');tick();return;}
-    state=next;save();render(now);
+    if(now>=E.slotTime(E.localDay(now),E.SLOTS[index])+E.AVAILABILITY){showSyncRetryAlert('انتهت مهلة هذه الجلسة (30 دقيقة).');return;}
+    button.disabled=true;
+    const startResponse=typeof window.fxStartSyncTrade==='function'
+      ?await window.fxStartSyncTrade(index+1)
+      :{ok:false,message:'تعذر الاتصال بخدمة تفعيل الجلسة.'};
+    if(!startResponse?.ok){
+      showSyncRetryAlert(startResponse?.message||'تعذر التحقق من موعد الجلسة. حاول مرة أخرى.');
+      lastTradeSignature=null;tick();return;
+    }
+    const startedAt=Date.parse(startResponse.startedAt||''),startedDay=String(startResponse.day||'');
+    if(!Number.isFinite(startedAt)||startedDay!==E.localDay(startedAt)){
+      showSyncRetryAlert('ردّ الخادم بوقت غير صالح؛ لم يبدأ التزامن. أعد المحاولة.');
+      lastTradeSignature=null;tick();return;
+    }
+    let next=state;
+    const localTrade=state.days.find(day=>day.day===startedDay)?.trades[index];
+    if(!localTrade||localTrade.status!=='running'||localTrade.runAt!==startedAt){
+      next=E.startTrade(state,index,capital,startedAt);
+    }
+    if(startResponse.completed)next=E.reconcile(next,syncNow());
+    const trade=next.days.find(day=>day.day===startedDay)?.trades[index];
+    if(!trade||(!startResponse.completed&&(trade.status!=='running'||trade.runAt!==startedAt))||
+       (startResponse.completed&&trade.status!=='completed')){
+      showSyncRetryAlert('لم يتم تحديث حالة الجلسة محلياً. أعد فتح الشاشة للتحقق من الخادم.');
+      lastTradeSignature=null;tick();return;
+    }
+    state=next;save();lastTradeSignature=null;render(syncNow());
+    if(startResponse.completed){creditCompleted();return;}
     const startedCard=el('syncTrades').querySelector('[data-trade-index="'+index+'"]');
     if(startedCard){startedCard.classList.add('sync-start-confirmed');setTimeout(()=>startedCard.classList.remove('sync-start-confirmed'),760);}
   });
   document.addEventListener('keydown',event=>{if(layer.hidden)return;if(event.key==='Escape'){event.preventDefault();close(false);return;}if(event.key==='Tab'){const nodes=[...layer.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex="0"]')].filter(n=>n.offsetParent!==null);const first=nodes[0],last=nodes[nodes.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}});
   window.addEventListener('storage',event=>{if(event.key===key&&!layer.hidden)tick();});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!layer.hidden)tick();});
   /* Keep crediting completed trades even when the sync screen is closed. */
-  setInterval(()=>{if(layer.hidden&&user()){read();const n=E.reconcile(state,Date.now());if(JSON.stringify(n)!==JSON.stringify(state)){state=n;save();}creditCompleted();}},15000);
+  setInterval(()=>{if(layer.hidden&&user()){read();const n=E.reconcile(state,syncNow());if(JSON.stringify(n)!==JSON.stringify(state)){state=n;save();}creditCompleted();}},15000);
   if(location.hash==='#sync-preview'){document.getElementById('welcomeScreen')?.classList.add('is-hidden');open();}
 })();
 </script>
@@ -31192,6 +31250,27 @@ disposers.push(()=>smoothPanCleanup.forEach(cleanup=>cleanup()));`;
     Object.keys(chartSupplementalLabels[lang]).forEach(function(source){target[source]=chartSupplementalLabels[lang][source];});
   });
   window.__FXMT_I18N_DICT=D;
+})();
+</script>
+<script>
+(function(){
+  var D=window.__FXMT_I18N_DICT||(window.__FXMT_I18N_DICT={});
+  var syncAvailabilityTranslations={
+    en:{'منتهية':'Expired','انتهت مهلة هذه الجلسة (30 دقيقة).':'This session activation window has expired (30 minutes).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Each session can be activated for 30 minutes from its scheduled time, then expires. It remains locked before the scheduled time. Sync starts only after that time and lasts 5 minutes.'},
+    fr:{'منتهية':'Expirée','انتهت مهلة هذه الجلسة (30 دقيقة).':'La fenêtre d’activation de cette session a expiré (30 minutes).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Chaque session peut être activée pendant 30 minutes à partir de l’heure prévue, puis expire. Elle reste verrouillée avant l’heure prévue. La synchronisation commence uniquement après cette heure et dure 5 minutes.'},
+    es:{'منتهية':'Caducada','انتهت مهلة هذه الجلسة (30 دقيقة).':'La ventana de activación de esta sesión ha caducado (30 minutos).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Cada sesión puede activarse durante 30 minutos desde la hora programada y luego caduca. Permanece bloqueada antes de esa hora. La sincronización comienza solo después y dura 5 minutos.'},
+    de:{'منتهية':'Abgelaufen','انتهت مهلة هذه الجلسة (30 دقيقة).':'Das Aktivierungsfenster dieser Sitzung ist abgelaufen (30 Minuten).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Jede Sitzung kann ab dem geplanten Zeitpunkt 30 Minuten lang aktiviert werden und läuft danach ab. Vor dem geplanten Zeitpunkt bleibt sie gesperrt. Die Synchronisierung beginnt erst danach und dauert 5 Minuten.'},
+    tr:{'منتهية':'Süresi doldu','انتهت مهلة هذه الجلسة (30 دقيقة).':'Bu oturumun etkinleştirme süresi doldu (30 dakika).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Her oturum, planlanan saatinden itibaren 30 dakika boyunca etkinleştirilebilir; ardından süresi dolar. Planlanan saatten önce kilitli kalır. Eşitleme yalnızca bu saatten sonra başlar ve 5 dakika sürer.'},
+    pt:{'منتهية':'Expirada','انتهت مهلة هذه الجلسة (30 دقيقة).':'A janela de ativação desta sessão expirou (30 minutos).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Cada sessão pode ser ativada durante 30 minutos a partir do horário programado e depois expira. Ela permanece bloqueada antes do horário. A sincronização começa somente depois e dura 5 minutos.'},
+    ru:{'منتهية':'Истекла','انتهت مهلة هذه الجلسة (30 دقيقة).':'Срок активации этого сеанса истёк (30 минут).','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'Каждый сеанс можно активировать в течение 30 минут после назначенного времени, затем срок истекает. До назначенного времени сеанс заблокирован. Синхронизация начинается только после этого времени и длится 5 минут.'},
+    zh:{'منتهية':'已过期','انتهت مهلة هذه الجلسة (30 دقيقة).':'此会话的激活时段已过期（30 分钟）。','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'每个会话从预定时间起可在 30 分钟内激活，之后将过期。预定时间之前会话保持锁定；同步只会在预定时间之后开始，并持续 5 分钟。'},
+    ja:{'منتهية':'期限切れ','انتهت مهلة هذه الجلسة (30 دقيقة).':'このセッションの有効化可能時間（30分）が終了しました。','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'各セッションは予定時刻から30分間有効化でき、その後は期限切れになります。予定時刻まではロックされ、同期は予定時刻以降にのみ開始し、5分間続きます。'},
+    hi:{'منتهية':'समाप्त','انتهت مهلة هذه الجلسة (30 دقيقة).':'इस सत्र को सक्रिय करने की 30 मिनट की अवधि समाप्त हो गई।','تُتاح كل جلسة لمدة 30 دقيقة من موعدها المحدد، ثم تنتهي صلاحية تفعيلها. تبقى الجلسة مقفلة قبل الموعد، ولا يبدأ التزامن إلا بعد الموعد، وتستمر الجلسة 5 دقائق بعد بدء التزامن.':'हर सत्र निर्धारित समय से 30 मिनट तक सक्रिय किया जा सकता है, फिर उसकी अवधि समाप्त हो जाती है। निर्धारित समय से पहले यह लॉक रहता है। सिंक केवल निर्धारित समय के बाद शुरू होता है और 5 मिनट चलता है।'}
+  };
+  Object.keys(syncAvailabilityTranslations).forEach(function(locale){
+    var map=D[locale]||(D[locale]={});
+    Object.keys(syncAvailabilityTranslations[locale]).forEach(function(source){map[source]=syncAvailabilityTranslations[locale][source];});
+  });
 })();
 </script>
 <script>(function(){
